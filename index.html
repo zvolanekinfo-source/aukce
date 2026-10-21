@@ -283,19 +283,41 @@
                 return sorted[0].firstName;
             };
 
-            const DrumsticksLogo = () => (
-                <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setView('home'); setSelectedAuctionId(null); setSelectedAdminAuction(null); }}>
-                    <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md flex items-center justify-center">
-                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11l-6-6m0 0l-6 6m6-6v12M5 19h14" />
-                        </svg>
-                    </div>
-                    <div>
-                        <span className="text-xl font-black tracking-wider text-slate-900">Aukce <span className="text-blue-600">Duo</span></span>
-                        <span className="block text-[10px] text-slate-500 tracking-widest uppercase font-semibold">Soukromé aukce</span>
-                    </div>
-                </div>
-            );
+           const DrumsticksLogo = () => (
+    <div
+        className="flex items-center gap-2 cursor-pointer"
+        onClick={() => {
+            setView('home');
+            setSelectedAuctionId(null);
+            setSelectedAdminAuction(null);
+        }}
+    >
+        <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md flex items-center justify-center">
+            <svg
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+            >
+                <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth="2"
+                    d="M19 11l-6-6m0 0l-6 6m6-6v12M5 19h14"
+                />
+            </svg>
+        </div>
+
+        <div>
+            <span className="text-xl font-black tracking-wider text-slate-900">
+                <span className="text-blue-600">i</span>aukce
+            </span>
+            <span className="block text-[10px] text-slate-500 tracking-widest uppercase font-semibold">
+                Soukromé aukce
+            </span>
+        </div>
+    </div>
+);
 
             const publicAuctions = auctions.filter(a => !a.isDraft);
 
