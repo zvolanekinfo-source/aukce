@@ -81,7 +81,7 @@
 
             // Režim úpravy existující aukce v adminu
             const [editingAuctionId, setEditingAuctionId] = React.useState(null);
-            const [editForm, setEditForm] = React.useState({ title: '', productName: '', description: '', imageUrl: '', startPrice: 1000 });
+            const [editForm, setEditForm] = React.useState({ title: '', productName: '', description: '', imageUrl: '', startPrice: 1000, startDate: '', startTime: '', endDate: '', endTime: '' });
 
             React.useEffect(() => {
                 const handleStorageChange = (e) => {
@@ -212,6 +212,9 @@
 
             const handleSaveEditAuction = (e) => {
                 e.preventDefault();
+                const startStr = `${editForm.startDate}T${editForm.startTime}`;
+                const endStr = `${editForm.endDate}T${editForm.endTime}`;
+                
                 const updated = auctions.map(a => {
                     if (a.id === editingAuctionId) {
                         return {
@@ -220,7 +223,9 @@
                             productName: editForm.productName,
                             description: editForm.description,
                             imageUrl: editForm.imageUrl,
-                            startPrice: Number(editForm.startPrice)
+                            startPrice: Number(editForm.startPrice),
+                            startTime: new Date(startStr).toISOString(),
+                            endTime: new Date(endStr).toISOString()
                         };
                     }
                     return a;
@@ -303,12 +308,6 @@
                 return Math.max(...auc.bids.map(b => b.amount));
             };
 
-            const getLeaderName = (auc) => {
-                if (!auc.bids || auc.bids.length === 0) return 'Zatím nikdo';
-                const sorted = [...auc.bids].sort((a,b) => b.amount - a.amount);
-                return sorted[0].firstName;
-            };
-
             const isUserWinning = (auc) => {
                 if (!user || !auc.bids || auc.bids.length === 0) return false;
                 return auc.bids[0].firstName === user.firstName && auc.bids[0].phone === user.phone;
@@ -316,22 +315,26 @@
 
             const calculatedBidAmount = currentAuction ? getCurrentHighest(currentAuction) + Number(bidSliderOffset) * 100 : 0;
 
+            const DrumsticksLogo = () => (
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setView('home'); setSelectedAuctionId(null); setSelectedAdminAuction(null); }}>
+                    <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md flex items-center justify-center">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11l-6-6m0 0l-6 6m6-6v12M5 19h14" />
+                        </svg>
+                    </div>
+                    <div>
+                        <span className="text-xl font-black tracking-wider text-slate-900">Aukce <span className="text-blue-600">Duo</span></span>
+                        <span className="block text-[10px] text-slate-500 tracking-widest uppercase font-semibold">Soukromé aukce</span>
+                    </div>
+                </div>
+            );
+
             const publicAuctions = auctions.filter(a => !a.isDraft);
 
             return (
                 <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans antialiased pb-24 relative">
                     <header className="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-40 px-4 py-3 flex items-center justify-between shadow-sm">
-                        <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setView('home'); setSelectedAuctionId(null); setSelectedAdminAuction(null); }}>
-                            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md flex items-center justify-center">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11l-6-6m0 0l-6 6m6-6v12M5 19h14" />
-                                </svg>
-                            </div>
-                            <div>
-                                <span className="text-xl font-black tracking-wider text-slate-900">Aukce <span className="text-blue-600">Duo</span></span>
-                                <span className="block text-[10px] text-slate-500 tracking-widest uppercase font-semibold">Soukromé aukce</span>
-                            </div>
-                        </div>
+                        <DrumsticksLogo />
 
                         <div className="flex items-center gap-3">
                             {isAdmin ? (
@@ -356,7 +359,7 @@
                                     </button>
                                     {showAuthMenu && (
                                         <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl border border-slate-200 shadow-xl p-3 z-50 text-left space-y-3">
-                                            <button onClick={() => { setView('register'); setShowAuthMenu(false); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg shadow-sm transition">
+                                            <button onClick={() => { setView('register'); setShowAuthMenu(false); setShowAuthMenu(false); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg shadow-sm transition">
                                                 Registrace účastníka
                                             </button>
                                             <form onSubmit={handleLoginExisting} className="space-y-2 border-t border-slate-100 pt-3">
@@ -516,7 +519,6 @@
                                     </div>
                                 </div>
 
-                                {/* KRUHOVÝ POSUVNÍK KOLEM KOLEČKA S DYNAMICKÝMI STAVY */}
                                 <div className={`p-6 rounded-2xl border transition-all shadow-inner space-y-6 text-center ${
                                     isUserWinning(currentAuction) ? 'bg-emerald-50/70 border-emerald-300' : 'bg-rose-50/70 border-rose-300'
                                 }`}>
@@ -534,7 +536,6 @@
 
                                     <div className="flex flex-col items-center space-y-4">
                                         <div className="relative w-52 h-52 flex items-center justify-center">
-                                            {/* Kruhový posuvník kolem obvodu */}
                                             <div className="absolute inset-0 rounded-full border-4 border-slate-200 flex items-center justify-center">
                                                 <input 
                                                     type="range" 
@@ -545,7 +546,6 @@
                                                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
                                                 />
                                             </div>
-                                            {/* Vnitřní moderní kolečko */}
                                             <div className="w-40 h-40 rounded-full bg-white shadow-lg border-4 border-blue-600 flex flex-col items-center justify-center text-slate-900 z-10">
                                                 <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Tvůj příhoz</span>
                                                 <span className="text-2xl font-black text-blue-600">{calculatedBidAmount.toLocaleString()}</span>
@@ -555,7 +555,6 @@
                                         <span className="text-xs text-slate-500">Posuň tažením po obvodu pro rychlé navýšení</span>
                                     </div>
 
-                                    {/* Ruční přepsání částky */}
                                     <div className="flex gap-2 max-w-sm mx-auto pt-2">
                                         <input 
                                             type="number" 
@@ -673,6 +672,26 @@
                                                 <label className="block text-xs font-bold">Změnit fotografii</label>
                                                 <input type="file" accept="image/*" onChange={e => handleImageUpload(e, true)} className="w-full text-xs" />
                                             </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="block text-xs font-bold">Začátek datum</label>
+                                                    <input type="date" value={editForm.startDate} onChange={e => setEditForm({...editForm, startDate: e.target.value})} className="w-full border p-2 rounded text-sm" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold">Začátek čas</label>
+                                                    <input type="time" value={editForm.startTime} onChange={e => setEditForm({...editForm, startTime: e.target.value})} className="w-full border p-2 rounded text-sm" />
+                                                </div>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                                <div>
+                                                    <label className="block text-xs font-bold">Konec datum</label>
+                                                    <input type="date" value={editForm.endDate} onChange={e => setEditForm({...editForm, endDate: e.target.value})} className="w-full border p-2 rounded text-sm" />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-bold">Konec čas</label>
+                                                    <input type="time" value={editForm.endTime} onChange={e => setEditForm({...editForm, endTime: e.target.value})} className="w-full border p-2 rounded text-sm" />
+                                                </div>
+                                            </div>
                                             <div>
                                                 <label className="block text-xs font-bold">Vyvolávací cena (Kč)</label>
                                                 <input type="number" value={editForm.startPrice} onChange={e => setEditForm({...editForm, startPrice: e.target.value})} className="w-full border p-2 rounded text-sm" />
@@ -720,21 +739,39 @@
 
                                         <div className="space-y-3">
                                             <h2 className="font-bold text-slate-900">Aukce v systému</h2>
-                                            {auctions.map(auc => (
-                                                <div key={auc.id} className="bg-white border rounded-2xl p-4 flex justify-between items-center shadow-sm">
-                                                    <div>
-                                                        <h3 className="font-bold text-slate-900">{auc.productName}</h3>
-                                                        <span className="text-xs text-slate-500">Cena: <strong className="text-emerald-600">{getCurrentHighest(auc).toLocaleString()} Kč</strong> ({auc.bids.length} příhozů)</span>
+                                            {auctions.map(auc => {
+                                                const dStart = new Date(auc.startTime);
+                                                const dEnd = new Date(auc.endTime);
+                                                return (
+                                                    <div key={auc.id} className="bg-white border rounded-2xl p-4 flex justify-between items-center shadow-sm">
+                                                        <div>
+                                                            <h3 className="font-bold text-slate-900">{auc.productName}</h3>
+                                                            <span className="text-xs text-slate-500 block">Cena: <strong className="text-emerald-600">{getCurrentHighest(auc).toLocaleString()} Kč</strong> ({auc.bids.length} příhozů)</span>
+                                                            <span className="text-[10px] text-slate-400 block">Končí: {toYMD(dEnd)} {toHM(dEnd)}</span>
+                                                        </div>
+                                                        <div className="flex gap-2 flex-wrap justify-end">
+                                                            <button onClick={() => { 
+                                                                setEditingAuctionId(auc.id); 
+                                                                setEditForm({ 
+                                                                    title: auc.title, 
+                                                                    productName: auc.productName, 
+                                                                    description: auc.description, 
+                                                                    imageUrl: auc.imageUrl, 
+                                                                    startPrice: auc.startPrice,
+                                                                    startDate: toYMD(dStart),
+                                                                    startTime: toHM(dStart),
+                                                                    endDate: toYMD(dEnd),
+                                                                    endTime: toHM(dEnd)
+                                                                }); 
+                                                            }} className="bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl">Upravit</button>
+                                                            <button onClick={() => setSelectedAdminAuction(auc)} className="bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-xl">Detail & Kontakty</button>
+                                                            {!auc.forceEnded && !auc.isDraft && (
+                                                                <button onClick={() => handleEndAuctionEarly(auc.id)} className="bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl">Ukončit</button>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                    <div className="flex gap-2 flex-wrap justify-end">
-                                                        <button onClick={() => { setEditingAuctionId(auc.id); setEditForm({ title: auc.title, productName: auc.productName, description: auc.description, imageUrl: auc.imageUrl, startPrice: auc.startPrice }); }} className="bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl">Upravit</button>
-                                                        <button onClick={() => setSelectedAdminAuction(auc)} className="bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-xl">Detail & Kontakty</button>
-                                                        {!auc.forceEnded && !auc.isDraft && (
-                                                            <button onClick={() => handleEndAuctionEarly(auc.id)} className="bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl">Ukončit</button>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                                );
+                                            })}
                                         </div>
 
                                         <div className="border-t pt-6 space-y-3">
