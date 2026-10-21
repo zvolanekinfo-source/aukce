@@ -17,7 +17,6 @@
         const toHM = (date) => `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
 
         function App() {
-            // Použití STABILNÍCH názvů klíčů pro localStorage, aby se data nikdy při aktualizaci nesmazala
             const [user, setUser] = React.useState(() => {
                 const saved = localStorage.getItem('iaukce_session');
                 return saved ? JSON.parse(saved) : null;
@@ -47,7 +46,7 @@
                 return () => clearInterval(interval);
             }, []);
 
-            // Načtení aukcí se stabilním klíčem
+            // Trvalé načítání aukcí
             const [auctions, setAuctions] = React.useState(() => {
                 const saved = localStorage.getItem('iaukce_auctions');
                 if (saved) {
@@ -56,7 +55,7 @@
                 return [];
             });
 
-            // Načtení účastníků se stabilním klíčem
+            // Trvalé načítání účastníků
             const [participants, setParticipants] = React.useState(() => {
                 const saved = localStorage.getItem('iaukce_participants');
                 if (saved) {
@@ -102,7 +101,21 @@
             const [showConfirmModal, setShowConfirmModal] = React.useState(false);
             const [pendingBid, setPendingBid] = React.useState(0);
 
-            // Okamžité ukládání do trvalého localStorage při jakékoliv změně
+            // Synchronizace dat mezi záložkami / zařízeními přes storage event
+            React.useEffect(() => {
+                const handleStorageEvent = (e) => {
+                    if (e.key === 'iaukce_auctions' && e.newValue) {
+                        try { setAuctions(JSON.parse(e.newValue)); } catch (err) {}
+                    }
+                    if (e.key === 'iaukce_participants' && e.newValue) {
+                        try { setParticipants(JSON.parse(e.newValue)); } catch (err) {}
+                    }
+                };
+                window.addEventListener('storage', handleStorageEvent);
+                return () => window.removeEventListener('storage', handleStorageEvent);
+            }, []);
+
+            // Ukládání do localStorage
             React.useEffect(() => { 
                 localStorage.setItem('iaukce_session', JSON.stringify(user)); 
             }, [user]);
@@ -138,7 +151,6 @@
                 setIsAdmin(false); 
                 setUser(newUser);
 
-                // Bezpečné přidání nového účastníka bez přepsání starých
                 setParticipants(prev => {
                     const exists = prev.some(p => p.phone === newUser.phone);
                     if (!exists) {
@@ -213,7 +225,6 @@
                     bids: []
                 };
 
-                // Okamžitá aktualizace stavu a zápis do trvalého úložiště
                 const updatedAuctions = [created, ...auctions];
                 setAuctions(updatedAuctions);
                 localStorage.setItem('iaukce_auctions', JSON.stringify(updatedAuctions));
@@ -484,15 +495,21 @@
                                                             <span className="text-[10px] text-slate-500 block uppercase font-semibold">Aktuální cena</span>
                                                             <span className="text-xl font-black text-emerald-600">{currentPrice.toLocaleString()} Kč</span>
                                                         </div>
+                                                        {/* Zde tlačítko správně přesměruje nepřihlášeného na registraci */}
                                                         <button 
                                                             onClick={() => {
-                                                                if (isAdmin) alert('Jste přihlášeni jako Admin. Pro účast se odhlaste a přihlaste jako běžný účastník.');
-                                                                else if (!user) setView('register');
-                                                                else { setSelectedAuctionId(auc.id); setView('auction'); }
+                                                                if (isAdmin) {
+                                                                    alert('Jste přihlášeni jako Admin. Pro účast se odhlaste a přihlaste jako běžný účastník.');
+                                                                } else if (!user) {
+                                                                    setView('register');
+                                                                } else {
+                                                                    setSelectedAuctionId(auc.id);
+                                                                    setView('auction');
+                                                                }
                                                             }}
                                                             className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition shadow"
                                                         >
-                                                            Vstoupit →
+                                                            Zúčastnit se →
                                                         </button>
                                                     </div>
                                                 </div>
