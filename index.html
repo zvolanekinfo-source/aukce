@@ -134,7 +134,6 @@
             });
 
             const [bidAmountInput, setBidAmountInput] = React.useState('');
-            const [sliderStepOffset, setSliderStepOffset] = React.useState(1);
             const [showConfirmModal, setShowConfirmModal] = React.useState(false);
             const [pendingBid, setPendingBid] = React.useState(0);
             const [showAllBidsModal, setShowAllBidsModal] = React.useState(false);
@@ -146,14 +145,12 @@
                 return Math.max(...auc.bids.map(b => b.amount));
             };
 
-            // Při otevření aukce nastavíme výchozí částku v poli i v posuvníku
+            // Při otevření aukce nastavíme výchozí částku v poli na aktuální + krok
             React.useEffect(() => {
                 if (currentAuction) {
                     const highest = getCurrentHighest(currentAuction);
                     const step = currentAuction.minBidStep || 100;
-                    const defaultBid = highest + step;
-                    setBidAmountInput(String(defaultBid));
-                    setSliderStepOffset(1);
+                    setBidAmountInput(String(highest + step));
                 }
             }, [selectedAuctionId, currentAuction?.bids?.length]);
 
@@ -307,14 +304,14 @@
                 return 'ended';
             };
 
-            const getTimeLeftFormat = (targetTime) => {
+            const getDetailedTimeLeft = (targetTime) => {
                 const diff = targetTime - now;
-                if (diff <= 0) return '00:00:00';
+                if (diff <= 0) return 'Aukce skončila';
                 const d = Math.floor(diff / (1000 * 60 * 60 * 24));
                 const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
                 const m = Math.floor((diff / 1000 / 60) % 60);
                 const s = Math.floor((diff / 1000) % 60);
-                return `${d > 0 ? d + 'd ' : ''}${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+                return `${d > 0 ? d + ' dny ' : ''}${h} hod ${m} min ${s} s`;
             };
 
             const confirmBid = async () => {
@@ -365,26 +362,11 @@
                 return winning && winning.phone === user.phone;
             };
 
-            const minStep = currentAuction ? (currentAuction.minBidStep || 100) : 100;
             const currentHighestPrice = currentAuction ? getCurrentHighest(currentAuction) : 0;
 
-            // Změna posuvníku okamžitě aktualizuje pole pro zadanou částku
             const handleSliderChange = (e) => {
-                const offset = Number(e.target.value);
-                setSliderStepOffset(offset);
-                const calculated = currentHighestPrice + (offset * minStep);
-                setBidAmountInput(String(calculated));
-            };
-
-            // Změna v poli textu
-            const handleInputChange = (e) => {
-                const val = e.target.value;
-                setBidAmountInput(val);
-                const numVal = Number(val);
-                if (numVal > currentHighestPrice) {
-                    const steps = Math.max(1, Math.round((numVal - currentHighestPrice) / minStep));
-                    setSliderStepOffset(steps);
-                }
+                const sliderVal = Number(e.target.value);
+                setBidAmountInput(String(sliderVal));
             };
 
             const IAukceLogo = () => (
@@ -402,8 +384,7 @@
             );
 
             return (
-                <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans antialiased pb-28 relative">
-                    {/* HLAVIČKA */}
+                <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans antialiased pb-24 relative">
                     <header className="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-40 px-4 py-3 flex items-center justify-between shadow-sm">
                         <IAukceLogo />
 
@@ -463,9 +444,7 @@
                         </div>
                     </header>
 
-                    {/* HLAVNÍ OBSAH */}
                     <main className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6">
-                        {/* PŮVODNÍ HLAVNÍ STRÁNKA */}
                         {view === 'home' && !selectedAuctionId && (
                             <div className="space-y-6">
                                 <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 md:p-8 rounded-2xl shadow-lg">
@@ -513,12 +492,7 @@
                                                                 {status === 'active' && (
                                                                     <span className="bg-white/90 backdrop-blur text-slate-800 text-[10px] font-bold px-2.5 py-1 rounded-md shadow flex items-center gap-1 border border-slate-200">
                                                                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                                                        Končí za: {getTimeLeftFormat(endTime)}
-                                                                    </span>
-                                                                )}
-                                                                {status === 'scheduled' && (
-                                                                    <span className="bg-white/90 backdrop-blur text-slate-800 text-[10px] font-bold px-2 py-1 rounded-md shadow flex items-center gap-1 border border-slate-200">
-                                                                        Začíná za: {getTimeLeftFormat(startTime)}
+                                                                        Končí za: {getDetailedTimeLeft(endTime)}
                                                                     </span>
                                                                 )}
                                                             </div>
@@ -559,7 +533,6 @@
                             </div>
                         )}
 
-                        {/* REGISTRACE */}
                         {view === 'register' && (
                             <div className="max-w-md mx-auto space-y-4">
                                 <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
@@ -588,53 +561,58 @@
                             </div>
                         )}
 
-                        {/* DETAIL AUKCE BEZ SCROLLOVÁNÍ */}
+                        {/* DETAIL AUKCE S LEVÝM ZAROVNÁNÍM A KOMPAKTNÍM VZHLEDEM */}
                         {view === 'auction' && currentAuction && (
-                            <div className="bg-white rounded-2xl p-4 md:p-6 shadow-xl border border-slate-200 flex flex-col justify-between space-y-3">
+                            <div className="bg-white rounded-2xl p-4 md:p-6 shadow-xl border border-slate-200 space-y-4">
                                 <div className="flex justify-between items-center border-b pb-2">
-                                    <button onClick={() => { setSelectedAuctionId(null); setView('home'); }} className="text-blue-600 font-bold text-sm">← Zpět na aukce</button>
-                                    <span className="text-xs bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full">
-                                        Končí za: {getTimeLeftFormat(new Date(currentAuction.endTime).getTime())}
+                                    <button onClick={() => { setSelectedAuctionId(null); setView('home'); }} className="text-blue-600 font-bold text-xs">← Zpět na aukce</button>
+                                    <span className="text-[11px] bg-emerald-100 text-emerald-800 font-bold px-3 py-1 rounded-full">
+                                        Zbývá: {getDetailedTimeLeft(new Date(currentAuction.endTime).getTime())}
                                     </span>
                                 </div>
 
-                                <div className="text-center">
-                                    <span className="text-xs text-blue-600 font-bold uppercase">{currentAuction.title}</span>
-                                    <h1 className="text-xl md:text-2xl font-black text-slate-900">{currentAuction.productName}</h1>
-                                    <p className="text-xs text-slate-500 mt-0.5 line-clamp-2">{currentAuction.description}</p>
+                                {/* HORNÍ ČÁST: VLEVO NÁZEV, POPIS A FOTKA */}
+                                <div className="grid md:grid-cols-2 gap-4 items-center">
+                                    <div className="space-y-1.5 text-left">
+                                        <span className="text-[10px] text-blue-600 font-bold uppercase tracking-wider">{currentAuction.title}</span>
+                                        <h1 className="text-xl md:text-2xl font-black text-slate-900">{currentAuction.productName}</h1>
+                                        <p className="text-xs text-slate-600 leading-relaxed">{currentAuction.description}</p>
+                                    </div>
+                                    <div className="flex justify-center">
+                                        {currentAuction.imageUrl ? (
+                                            <div className="h-32 bg-slate-50 rounded-xl p-2 border border-slate-100 flex items-center justify-center w-full max-w-xs">
+                                                <img src={currentAuction.imageUrl} alt={currentAuction.productName} className="max-h-full object-contain" />
+                                            </div>
+                                        ) : (
+                                            <span className="text-xs text-slate-400 italic">Bez fotografie</span>
+                                        )}
+                                    </div>
                                 </div>
 
-                                {/* OBRÁZEK PŘÍMO UPROSTŘED NAHOŘE */}
-                                {currentAuction.imageUrl && (
-                                    <div className="w-full h-36 bg-slate-50 rounded-xl p-2 border border-slate-100 flex items-center justify-center">
-                                        <img src={currentAuction.imageUrl} alt={currentAuction.productName} className="max-h-full object-contain" />
-                                    </div>
-                                )}
-
-                                {/* TEXT KDO VYHRÁVÁ & VELKÁ ČÁSTKA */}
-                                <div className="text-center py-1">
+                                {/* AKTUÁLNÍ CENA & VÝHERCE */}
+                                <div className="bg-slate-50 p-3 rounded-xl border text-center space-y-1">
                                     {isUserWinning(currentAuction) ? (
-                                        <span className="text-emerald-600 text-sm font-black uppercase tracking-wide block">
+                                        <span className="text-emerald-600 text-xs font-black uppercase tracking-wide block">
                                             ✓ VYHRÁVÁTE S NABÍDKOU
                                         </span>
                                     ) : (
-                                        <span className="text-slate-700 text-sm font-bold block">
+                                        <span className="text-slate-700 text-xs font-bold block">
                                             Vyhrává nabídka: <strong className="text-slate-900 font-black">{getHighestBidder(currentAuction) ? getHighestBidder(currentAuction).firstName : 'Vyvolávací'}</strong>
                                         </span>
                                     )}
-                                    <div className="text-3xl font-black text-slate-900 mt-1">
-                                        {currentHighestPrice.toLocaleString()} <span className="text-lg text-slate-500">Kč</span>
+                                    <div className="text-2xl md:text-3xl font-black text-slate-900">
+                                        {currentHighestPrice.toLocaleString()} <span className="text-base text-slate-500">Kč</span>
                                     </div>
                                 </div>
 
-                                {/* POLE PRO ČÁSTKU PROPOJENÉ S POSUVNÍKEM */}
-                                <div className="space-y-3 max-w-md mx-auto w-full bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                {/* OVLÁDÁNÍ PŘIHOZU */}
+                                <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200 max-w-md mx-auto w-full">
                                     <div>
                                         <label className="block text-xs font-bold text-slate-600 mb-1 text-center">Částka k přihouzení (Kč):</label>
                                         <input 
                                             type="number" 
                                             value={bidAmountInput} 
-                                            onChange={handleInputChange} 
+                                            onChange={e => setBidAmountInput(e.target.value)} 
                                             className="w-full bg-white border-2 border-blue-600 rounded-xl px-4 py-2 text-center text-xl font-black text-blue-600 shadow-sm" 
                                         />
                                     </div>
@@ -642,14 +620,17 @@
                                     <div>
                                         <input 
                                             type="range" 
-                                            min="1" 
-                                            max="30" 
-                                            step="1"
-                                            value={sliderStepOffset} 
+                                            min={currentHighestPrice + (currentAuction.minBidStep || 100)} 
+                                            max={Math.max(currentHighestPrice + 100000, currentHighestPrice + 5000)} 
+                                            step={currentAuction.minBidStep || 100}
+                                            value={Number(bidAmountInput) || (currentHighestPrice + (currentAuction.minBidStep || 100))} 
                                             onChange={handleSliderChange}
                                             className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-600"
                                         />
-                                        <span className="text-[11px] text-slate-400 block text-center mt-1">Posuňte pro rychlé navýšení (krok {minStep} Kč)</span>
+                                        <div className="flex justify-between text-[10px] text-slate-400 mt-1 font-semibold">
+                                            <span>Min: {(currentHighestPrice + (currentAuction.minBidStep || 100)).toLocaleString()} Kč</span>
+                                            <span>Posuvník (max 100 000 Kč navíc)</span>
+                                        </div>
                                     </div>
 
                                     <button 
@@ -662,9 +643,9 @@
                                             setPendingBid(val);
                                             setShowConfirmModal(true);
                                         }}
-                                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-base py-3 rounded-xl shadow-lg transition transform active:scale-95"
+                                        className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm py-3 rounded-xl shadow-lg transition transform active:scale-95"
                                     >
-                                        Přihodit {Number(bidAmountInput).toLocaleString()} Kč
+                                        Přihodit {Number(bidAmountInput || 0).toLocaleString()} Kč
                                     </button>
                                 </div>
 
@@ -683,7 +664,7 @@
                                     </div>
 
                                     {currentAuction.bids.length === 0 ? (
-                                        <p className="text-slate-400 text-xs italic text-center">Zatím nepadnul žádný příhoz.</p>
+                                        <p className="text-slate-400 text-xs italic text-center py-1">Zatím nepadnul žádný příhoz.</p>
                                     ) : (
                                         <div className="space-y-1">
                                             {currentAuction.bids.slice(0, 6).map((b, i) => (
@@ -815,20 +796,20 @@
 
                     {/* SPODNÍ INFORMACNÍ LIŠTA */}
                     <div className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ${footerVisible ? 'translate-y-0' : 'translate-y-full'}`}>
-                        <footer className="bg-white/95 backdrop-blur border-t border-slate-200 py-3.5 px-4 text-xs text-slate-600 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
-                            <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+                        <footer className="bg-white/95 backdrop-blur border-t border-slate-200 py-3 px-4 text-xs text-slate-600 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
+                            <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
                                 <div className="text-center md:text-left space-y-0.5">
-                                    <p className="font-bold text-slate-700 text-xs md:text-sm">
+                                    <p className="font-bold text-slate-700 text-[11px] md:text-xs">
                                         Upozornění: Přes tento web neprobíhají žádné platby. Web slouží výhradně pro kontaktování výherce aukce.
                                     </p>
-                                    <p className="text-slate-600 font-semibold text-[11px]">
+                                    <p className="text-slate-600 font-semibold text-[10px]">
                                         Aukce Duo kontaktní osoba <span className="text-slate-900 font-bold">Zvolánek Denis</span> <a href="tel:+420602330228" className="text-blue-600 hover:underline font-bold">+420 602 330 228</a>
                                     </p>
                                 </div>
                                 
                                 <button 
                                     onClick={() => setFooterVisible(false)}
-                                    className="w-full md:w-auto bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-6 py-2.5 rounded-xl transition shadow-md shrink-0"
+                                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs px-4 py-1.5 rounded-lg transition shadow shrink-0"
                                 >
                                     OK
                                 </button>
