@@ -150,6 +150,7 @@
                 const hashBuffer = await crypto.subtle.digest('SHA-256', data);
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                // Hash pro heslo "@dmin1"
                 const targetHash = '8d904791cce6639df31969d2d0c242004270d18ef180cdbe99a169b14243efef';
 
                 if (adminUser.trim() === 'Zvolanek1' && passwordHash === targetHash) {
