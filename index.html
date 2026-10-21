@@ -8,11 +8,19 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Supabase Client -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
+        // Propojení se Supabase databází
+        const SUPABASE_URL = "https://uwfpyjbvgyesxmpzedcs.supabase.co";
+        const SUPABASE_ANON_KEY = "sb_publishable_44EjLS-r5zu7hEVK6ZZO9A_a28zzo01";
+        
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
         const toYMD = (date) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
         const toHM = (date) => `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
 
@@ -46,23 +54,62 @@
                 return () => clearInterval(interval);
             }, []);
 
-            // Trvalé načítání aukcí
-            const [auctions, setAuctions] = React.useState(() => {
-                const saved = localStorage.getItem('iaukce_auctions');
-                if (saved) {
-                    try { return JSON.parse(saved); } catch (e) { return []; }
-                }
-                return [];
-            });
+            const [auctions, setAuctions] = React.useState([]);
+            const [participants, setParticipants] = React.useState([]);
 
-            // Trvalé načítání účastníků
-            const [participants, setParticipants] = React.useState(() => {
-                const saved = localStorage.getItem('iaukce_participants');
-                if (saved) {
-                    try { return JSON.parse(saved); } catch (e) { return []; }
+            // Načtení dat ze Supabase a nastavení živého naslouchání změnám
+            React.useEffect(() => {
+                fetchData();
+
+                const channel = supabase.channel('public-db-changes')
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => {
+                        fetchData();
+                    })
+                    .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => {
+                        fetchData();
+                    })
+                    .subscribe();
+
+                return () => {
+                    supabase.removeChannel(channel);
+                };
+            }, []);
+
+            const fetchData = async () => {
+                try {
+                    const { data: aucData } = await supabase.from('auctions').select('*');
+                    if (aucData) {
+                        const formattedAuctions = aucData.map(a => ({
+                            id: a.id,
+                            title: a.title,
+                            productName: a.product_name,
+                            description: a.description,
+                            imageUrl: a.image_url,
+                            startPrice: Number(a.start_price),
+                            minBidStep: Number(a.min_bid_step),
+                            autoExtendMinutes: a.auto_extend_minutes,
+                            startTime: a.start_time,
+                            endTime: a.end_time,
+                            forceEnded: a.force_ended,
+                            bids: a.bids || []
+                        }));
+                        setAuctions(formattedAuctions);
+                    }
+
+                    const { data: partData } = await supabase.from('participants').select('*');
+                    if (partData) {
+                        const formattedParticipants = partData.map(p => ({
+                            id: Number(p.id),
+                            firstName: p.first_name,
+                            lastName: p.last_name,
+                            phone: p.phone
+                        }));
+                        setParticipants(formattedParticipants);
+                    }
+                } catch (err) {
+                    console.error("Chyba při načítání ze Supabase:", err);
                 }
-                return [];
-            });
+            };
 
             const today = new Date();
             const tomorrow = new Date(Date.now() + 86400000);
@@ -101,21 +148,6 @@
             const [showConfirmModal, setShowConfirmModal] = React.useState(false);
             const [pendingBid, setPendingBid] = React.useState(0);
 
-            // Synchronizace dat mezi záložkami / zařízeními přes storage event
-            React.useEffect(() => {
-                const handleStorageEvent = (e) => {
-                    if (e.key === 'iaukce_auctions' && e.newValue) {
-                        try { setAuctions(JSON.parse(e.newValue)); } catch (err) {}
-                    }
-                    if (e.key === 'iaukce_participants' && e.newValue) {
-                        try { setParticipants(JSON.parse(e.newValue)); } catch (err) {}
-                    }
-                };
-                window.addEventListener('storage', handleStorageEvent);
-                return () => window.removeEventListener('storage', handleStorageEvent);
-            }, []);
-
-            // Ukládání do localStorage
             React.useEffect(() => { 
                 localStorage.setItem('iaukce_session', JSON.stringify(user)); 
             }, [user]);
@@ -123,14 +155,6 @@
             React.useEffect(() => { 
                 localStorage.setItem('iaukce_auth', isAdmin); 
             }, [isAdmin]);
-            
-            React.useEffect(() => { 
-                localStorage.setItem('iaukce_auctions', JSON.stringify(auctions)); 
-            }, [auctions]);
-            
-            React.useEffect(() => { 
-                localStorage.setItem('iaukce_participants', JSON.stringify(participants)); 
-            }, [participants]);
 
             const handleAdminLogin = (e) => {
                 e.preventDefault();
@@ -142,25 +166,23 @@
                 }
             };
 
-            const handleRegister = (e) => {
+            const handleRegister = async (e) => {
                 e.preventDefault();
                 if (!regForm.firstName || !regForm.lastName || !regForm.phone) {
                     alert('Prosím vyplňte všechna pole.'); return;
                 }
-                const newUser = { id: Date.now(), firstName: regForm.firstName.trim(), lastName: regForm.lastName.trim(), phone: regForm.phone.trim() };
+                const newUser = { id: Date.now(), first_name: regForm.firstName.trim(), last_name: regForm.lastName.trim(), phone: regForm.phone.trim() };
+                
+                const { error } = await supabase.from('participants').insert([newUser]);
+                if (error) {
+                    alert('Chyba při registraci (telefonní číslo již možná existuje): ' + error.message);
+                    return;
+                }
+
+                const clientUser = { id: newUser.id, firstName: newUser.first_name, lastName: newUser.last_name, phone: newUser.phone };
                 setIsAdmin(false); 
-                setUser(newUser);
-
-                setParticipants(prev => {
-                    const exists = prev.some(p => p.phone === newUser.phone);
-                    if (!exists) {
-                        const updated = [...prev, newUser];
-                        localStorage.setItem('iaukce_participants', JSON.stringify(updated));
-                        return updated;
-                    }
-                    return prev;
-                });
-
+                setUser(clientUser);
+                fetchData();
                 setView('home');
             };
 
@@ -198,7 +220,7 @@
                 reader.readAsDataURL(file);
             };
 
-            const handleCreateAuction = (e) => {
+            const handleCreateAuction = async (e) => {
                 e.preventDefault();
                 const startStr = `${newAuction.startDate}T${newAuction.startTime}`;
                 const endStr = `${newAuction.endDate}T${newAuction.endTime}`;
@@ -210,74 +232,72 @@
                     return;
                 }
 
-                const created = {
+                const createdDB = {
                     id: 'auc-' + Date.now(),
                     title: newAuction.title || 'Aukce',
-                    productName: newAuction.productName,
+                    product_name: newAuction.productName,
                     description: newAuction.description,
-                    imageUrl: newAuction.imageUrl || '',
-                    startPrice: Number(newAuction.startPrice),
-                    minBidStep: Number(newAuction.minBidStep) || 100,
-                    autoExtendMinutes: Number(newAuction.autoExtendMinutes) || 0,
-                    startTime: new Date(startStr).toISOString(),
-                    endTime: new Date(endStr).toISOString(),
-                    forceEnded: false,
+                    image_url: newAuction.imageUrl || '',
+                    start_price: Number(newAuction.startPrice),
+                    min_bid_step: Number(newAuction.minBidStep) || 100,
+                    auto_extend_minutes: Number(newAuction.autoExtendMinutes) || 0,
+                    start_time: new Date(startStr).toISOString(),
+                    end_time: new Date(endStr).toISOString(),
+                    force_ended: false,
                     bids: []
                 };
 
-                const updatedAuctions = [created, ...auctions];
-                setAuctions(updatedAuctions);
-                localStorage.setItem('iaukce_auctions', JSON.stringify(updatedAuctions));
+                const { error } = await supabase.from('auctions').insert([createdDB]);
+                if (error) {
+                    alert('Chyba při vytváření aukce: ' + error.message);
+                    return;
+                }
 
+                fetchData();
                 setSelectedAdminAuction(null);
-                alert('Aukce byla ihned vytvořena a uložena!');
+                alert('Aukce byla úspěšně vytvořena a uložena do Supabase!');
             };
 
-            const handleSaveEditAuction = (e) => {
+            const handleSaveEditAuction = async (e) => {
                 e.preventDefault();
                 const startStr = `${editForm.startDate}T${editForm.startTime}`;
                 const endStr = `${editForm.endDate}T${editForm.endTime}`;
                 
-                const updated = auctions.map(a => {
-                    if (a.id === editingAuctionId) {
-                        return {
-                            ...a,
-                            title: editForm.title,
-                            productName: editForm.productName,
-                            description: editForm.description,
-                            imageUrl: editForm.imageUrl,
-                            startPrice: Number(editForm.startPrice),
-                            minBidStep: Number(editForm.minBidStep),
-                            autoExtendMinutes: Number(editForm.autoExtendMinutes),
-                            startTime: new Date(startStr).toISOString(),
-                            endTime: new Date(endStr).toISOString()
-                        };
-                    }
-                    return a;
-                });
-                setAuctions(updated);
-                localStorage.setItem('iaukce_auctions', JSON.stringify(updated));
+                const updateData = {
+                    title: editForm.title,
+                    product_name: editForm.productName,
+                    description: editForm.description,
+                    image_url: editForm.imageUrl,
+                    start_price: Number(editForm.startPrice),
+                    min_bid_step: Number(editForm.minBidStep),
+                    auto_extend_minutes: Number(editForm.autoExtendMinutes),
+                    start_time: new Date(startStr).toISOString(),
+                    end_time: new Date(endStr).toISOString()
+                };
+
+                const { error } = await supabase.from('auctions').update(updateData).eq('id', editingAuctionId);
+                if (error) {
+                    alert('Chyba při úpravě: ' + error.message);
+                    return;
+                }
+
+                fetchData();
                 setEditingAuctionId(null);
                 alert('Aukce byla úspěšně aktualizována.');
             };
 
-            const handleDeleteAuction = (aucId) => {
+            const handleDeleteAuction = async (aucId) => {
                 if (confirm('Opravdu chcete tuto aukci trvale smazat?')) {
-                    const updated = auctions.filter(a => a.id !== aucId);
-                    setAuctions(updated);
-                    localStorage.setItem('iaukce_auctions', JSON.stringify(updated));
+                    await supabase.from('auctions').delete().eq('id', aucId);
+                    fetchData();
                     if (selectedAdminAuction && selectedAdminAuction.id === aucId) setSelectedAdminAuction(null);
                 }
             };
 
-            const handleEndAuctionEarly = (aucId) => {
+            const handleEndAuctionEarly = async (aucId) => {
                 if (confirm('Opravdu chcete tuto aukci okamžitě ukončit?')) {
-                    const updated = auctions.map(a => {
-                        if (a.id === aucId) return { ...a, forceEnded: true };
-                        return a;
-                    });
-                    setAuctions(updated);
-                    localStorage.setItem('iaukce_auctions', JSON.stringify(updated));
+                    await supabase.from('auctions').update({ force_ended: true }).eq('id', aucId);
+                    fetchData();
                 }
             };
 
@@ -300,35 +320,40 @@
                 return `${d > 0 ? d + 'd ' : ''}${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
             };
 
-            const confirmBid = () => {
-                const updated = auctions.map(a => {
-                    if (a.id === selectedAuctionId) {
-                        let currentEndTime = new Date(a.endTime).getTime();
-                        if (a.autoExtendMinutes > 0) {
-                            const extensionMs = a.autoExtendMinutes * 60 * 1000;
-                            if (currentEndTime - now < extensionMs) {
-                                currentEndTime = now + extensionMs;
-                            }
-                        }
+            const confirmBid = async () => {
+                const currentAuction = auctions.find(a => a.id === selectedAuctionId);
+                if (!currentAuction) return;
 
-                        const newBidObj = {
-                            id: Date.now(),
-                            firstName: user.firstName,
-                            lastName: user.lastName,
-                            phone: user.phone,
-                            amount: pendingBid,
-                            time: new Date().toLocaleTimeString()
-                        };
-                        return { 
-                            ...a, 
-                            endTime: new Date(currentEndTime).toISOString(),
-                            bids: [newBidObj, ...a.bids] 
-                        };
+                let currentEndTime = new Date(currentAuction.endTime).getTime();
+                if (currentAuction.autoExtendMinutes > 0) {
+                    const extensionMs = currentAuction.autoExtendMinutes * 60 * 1000;
+                    if (currentEndTime - now < extensionMs) {
+                        currentEndTime = now + extensionMs;
                     }
-                    return a;
-                });
-                setAuctions(updated);
-                localStorage.setItem('iaukce_auctions', JSON.stringify(updated));
+                }
+
+                const newBidObj = {
+                    id: Date.now(),
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    phone: user.phone,
+                    amount: pendingBid,
+                    time: new Date().toLocaleTimeString()
+                };
+
+                const updatedBids = [newBidObj, ...currentAuction.bids];
+
+                const { error } = await supabase.from('auctions').update({
+                    end_time: new Date(currentEndTime).toISOString(),
+                    bids: updatedBids
+                }).eq('id', selectedAuctionId);
+
+                if (error) {
+                    alert('Chyba při odesílání příhozu: ' + error.message);
+                    return;
+                }
+
+                fetchData();
                 setShowConfirmModal(false);
                 setCustomBidInput('');
                 setBidSliderOffset(0);
@@ -495,7 +520,6 @@
                                                             <span className="text-[10px] text-slate-500 block uppercase font-semibold">Aktuální cena</span>
                                                             <span className="text-xl font-black text-emerald-600">{currentPrice.toLocaleString()} Kč</span>
                                                         </div>
-                                                        {/* Zde tlačítko správně přesměruje nepřihlášeného na registraci */}
                                                         <button 
                                                             onClick={() => {
                                                                 if (isAdmin) {
