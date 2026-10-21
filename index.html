@@ -143,7 +143,6 @@
                 }
             };
 
-            // Bezpečné ověření administrátora (hash SHA-256 zamezuje odhalení hesla ve zdrojovém kódu)
             const handleAdminLogin = async (e) => {
                 e.preventDefault();
                 const encoder = new TextEncoder();
@@ -151,8 +150,6 @@
                 const hashBuffer = await crypto.subtle.digest('SHA-256', data);
                 const hashArray = Array.from(new Uint8Array(hashBuffer));
                 const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-                
-                // Hash pro heslo "@dmin1"
                 const targetHash = '8d904791cce6639df31969d2d0c242004270d18ef180cdbe99a169b14243efef';
 
                 if (adminUser.trim() === 'Zvolanek1' && passwordHash === targetHash) {
@@ -614,7 +611,7 @@
                         {view === 'admin-login' && (
                             <div className="max-w-md mx-auto bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
                                 <h2 className="text-2xl font-bold text-slate-900 mb-2">Administrace – Přihlášení</h2>
-                                <p className="text-sm text-slate-600 mb-6">Zadejte přihlašovací údaje pro přístup ke správě aukcí a údajům účastníků.</p>
+                                <p className="text-sm text-slate-600 mb-6">Zadejte přihlašovací údaje pro přístup ke správě aukcí.</p>
 
                                 <form onSubmit={handleAdminLogin} className="space-y-4">
                                     <div>
