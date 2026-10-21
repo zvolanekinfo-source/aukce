@@ -18,11 +18,11 @@
 
         function App() {
             const [user, setUser] = React.useState(() => {
-                const saved = localStorage.getItem('iaukce_session_v9');
+                const saved = localStorage.getItem('iaukce_session_v10');
                 return saved ? JSON.parse(saved) : null;
             });
             const [isAdmin, setIsAdmin] = React.useState(() => {
-                return localStorage.getItem('iaukce_auth_v9') === 'true';
+                return localStorage.getItem('iaukce_auth_v10') === 'true';
             });
             
             const [view, setView] = React.useState('home');
@@ -46,16 +46,18 @@
                 return () => clearInterval(interval);
             }, []);
 
+            // Trvalé načítání aukcí
             const [auctions, setAuctions] = React.useState(() => {
-                const saved = localStorage.getItem('iaukce_auctions_v9');
+                const saved = localStorage.getItem('iaukce_auctions_v10');
                 if (saved) {
                     try { return JSON.parse(saved); } catch (e) { return []; }
                 }
                 return [];
             });
 
+            // Trvalé načítání účastníků
             const [participants, setParticipants] = React.useState(() => {
-                const saved = localStorage.getItem('iaukce_participants_v9');
+                const saved = localStorage.getItem('iaukce_participants_v10');
                 if (saved) {
                     try { return JSON.parse(saved); } catch (e) { return []; }
                 }
@@ -66,7 +68,7 @@
             const tomorrow = new Date(Date.now() + 86400000);
 
             const [newAuction, setNewAuction] = React.useState({
-                title: '',
+                title: 'iPhone Aukce',
                 productName: '',
                 description: '',
                 imageUrl: '',
@@ -99,20 +101,21 @@
             const [showConfirmModal, setShowConfirmModal] = React.useState(false);
             const [pendingBid, setPendingBid] = React.useState(0);
 
+            // Automatické uložení při jakékoliv změně
             React.useEffect(() => { 
-                localStorage.setItem('iaukce_session_v9', JSON.stringify(user)); 
+                localStorage.setItem('iaukce_session_v10', JSON.stringify(user)); 
             }, [user]);
             
             React.useEffect(() => { 
-                localStorage.setItem('iaukce_auth_v9', isAdmin); 
+                localStorage.setItem('iaukce_auth_v10', isAdmin); 
             }, [isAdmin]);
             
             React.useEffect(() => { 
-                localStorage.setItem('iaukce_auctions_v9', JSON.stringify(auctions)); 
+                localStorage.setItem('iaukce_auctions_v10', JSON.stringify(auctions)); 
             }, [auctions]);
             
             React.useEffect(() => { 
-                localStorage.setItem('iaukce_participants_v9', JSON.stringify(participants)); 
+                localStorage.setItem('iaukce_participants_v10', JSON.stringify(participants)); 
             }, [participants]);
 
             const handleAdminLogin = (e) => {
@@ -131,12 +134,19 @@
                     alert('Prosím vyplňte všechna pole.'); return;
                 }
                 const newUser = { id: Date.now(), firstName: regForm.firstName.trim(), lastName: regForm.lastName.trim(), phone: regForm.phone.trim() };
-                setIsAdmin(false); setUser(newUser);
-                const updatedParticipants = [...participants];
-                if (!updatedParticipants.some(p => p.phone === newUser.phone)) {
-                    updatedParticipants.push(newUser);
-                    setParticipants(updatedParticipants);
-                }
+                setIsAdmin(false); 
+                setUser(newUser);
+
+                setParticipants(prev => {
+                    const exists = prev.some(p => p.phone === newUser.phone);
+                    if (!exists) {
+                        const updated = [...prev, newUser];
+                        localStorage.setItem('iaukce_participants_v10', JSON.stringify(updated));
+                        return updated;
+                    }
+                    return prev;
+                });
+
                 setView('home');
             };
 
@@ -200,10 +210,14 @@
                     forceEnded: false,
                     bids: []
                 };
+
+                // Okamžitá aktualizace stavu i localStorage
                 const updatedAuctions = [created, ...auctions];
                 setAuctions(updatedAuctions);
+                localStorage.setItem('iaukce_auctions_v10', JSON.stringify(updatedAuctions));
+
                 setSelectedAdminAuction(null);
-                alert('Aukce byla úspěšně vytvořena a uložena!');
+                alert('Aukce byla ihned vytvořena a uložena!');
             };
 
             const handleSaveEditAuction = (e) => {
@@ -229,6 +243,7 @@
                     return a;
                 });
                 setAuctions(updated);
+                localStorage.setItem('iaukce_auctions_v10', JSON.stringify(updated));
                 setEditingAuctionId(null);
                 alert('Aukce byla úspěšně aktualizována.');
             };
@@ -237,6 +252,7 @@
                 if (confirm('Opravdu chcete tuto aukci trvale smazat?')) {
                     const updated = auctions.filter(a => a.id !== aucId);
                     setAuctions(updated);
+                    localStorage.setItem('iaukce_auctions_v10', JSON.stringify(updated));
                     if (selectedAdminAuction && selectedAdminAuction.id === aucId) setSelectedAdminAuction(null);
                 }
             };
@@ -248,6 +264,7 @@
                         return a;
                     });
                     setAuctions(updated);
+                    localStorage.setItem('iaukce_auctions_v10', JSON.stringify(updated));
                 }
             };
 
@@ -298,6 +315,7 @@
                     return a;
                 });
                 setAuctions(updated);
+                localStorage.setItem('iaukce_auctions_v10', JSON.stringify(updated));
                 setShowConfirmModal(false);
                 setCustomBidInput('');
                 setBidSliderOffset(0);
@@ -319,7 +337,6 @@
             const minStep = currentAuction ? (currentAuction.minBidStep || 100) : 100;
             const calculatedBidAmount = currentAuction ? getCurrentHighest(currentAuction) + Number(bidSliderOffset) * minStep : 0;
 
-            // OPRAVENÉ LOGO: Modrý rámeček, v něm 3 svislé bílé čárky jako rostoucí graf + iAukce bez .cz
             const IAukceLogo = () => (
                 <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => { setView('home'); setSelectedAuctionId(null); setSelectedAdminAuction(null); }}>
                     <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md flex items-end justify-center gap-1 w-9 h-9">
@@ -618,19 +635,19 @@
                             </div>
                         )}
 
-                        {/* ADMINISTRACE */}
+                        {/* ADMIN REŽIM */}
                         {view === 'admin' && isAdmin && (
                             <div className="space-y-6">
                                 {selectedAdminAuction === 'new' ? (
                                     <div className="bg-white p-6 rounded-2xl shadow space-y-4 border border-slate-200">
                                         <div className="flex justify-between items-center border-b pb-3">
-                                            <h2 className="text-lg font-bold">Nová aukce</h2>
+                                            <h2 className="text-lg font-bold">Vytvořit novou aukci</h2>
                                             <button onClick={() => setSelectedAdminAuction(null)} className="text-xs text-slate-500">Zpět</button>
                                         </div>
                                         <form onSubmit={handleCreateAuction} className="space-y-3 text-xs">
                                             <div>
                                                 <label className="block font-bold mb-1">Nadpis / Štítek</label>
-                                                <input type="text" placeholder="např. Hlavní trh" value={newAuction.title} onChange={e => setNewAuction({...newAuction, title: e.target.value})} className="w-full border p-2.5 rounded-xl" />
+                                                <input type="text" placeholder="např. iPhone Aukce" value={newAuction.title} onChange={e => setNewAuction({...newAuction, title: e.target.value})} className="w-full border p-2.5 rounded-xl" />
                                             </div>
                                             <div>
                                                 <label className="block font-bold mb-1">Název produktu</label>
@@ -657,7 +674,7 @@
                                             </div>
 
                                             <div>
-                                                <label className="block font-bold mb-1">Automatické prodloužení (minuty)</label>
+                                                <label className="block font-bold mb-1">Automatické prodloužení konce (v minutách)</label>
                                                 <input type="number" value={newAuction.autoExtendMinutes} onChange={e => setNewAuction({...newAuction, autoExtendMinutes: e.target.value})} className="w-full border p-2.5 rounded-xl" />
                                             </div>
 
@@ -681,7 +698,7 @@
                                                     <input type="time" value={newAuction.endTime} onChange={e => setNewAuction({...newAuction, endTime: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
                                                 </div>
                                             </div>
-                                            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow text-sm">Vytvořit aukci</button>
+                                            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow text-sm">Vytvořit a ihned publikovat</button>
                                         </form>
                                     </div>
                                 ) : editingAuctionId ? (
@@ -774,7 +791,7 @@
                                 ) : (
                                     <div className="space-y-6">
                                         <div className="flex justify-between items-center">
-                                            <h1 className="text-xl font-black">Správa aukcí (včetně proběhlých)</h1>
+                                            <h1 className="text-xl font-black">Správa všech aukcí</h1>
                                             <button onClick={() => setSelectedAdminAuction('new')} className="bg-blue-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow">＋ Vytvořit novou aukci</button>
                                         </div>
 
@@ -796,7 +813,7 @@
                                                                 </span>
                                                             </div>
                                                             <span className="text-xs text-slate-500 block mt-0.5">Cena: <strong className="text-emerald-600">{getCurrentHighest(auc).toLocaleString()} Kč</strong> ({auc.bids.length} příhozů)</span>
-                                                            <span className="text-[10px] text-slate-400 block">Konec: {toYMD(dEnd)} {toHM(dEnd)}</span>
+                                                            <span className="text-[10px] text-slate-400 block">Trvání: {toYMD(dStart)} {toHM(dStart)} — {toYMD(dEnd)} {toHM(dEnd)}</span>
                                                         </div>
                                                         <div className="flex gap-2 flex-wrap justify-end">
                                                             <button onClick={() => { 
@@ -827,7 +844,7 @@
                                         </div>
 
                                         <div className="border-t pt-6 space-y-3">
-                                            <h2 className="font-bold text-slate-900">Registrovaní účastníci</h2>
+                                            <h2 className="font-bold text-slate-900">Seznam registrovaných účastníků ({participants.length})</h2>
                                             <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
                                                 <table className="w-full text-left text-xs">
                                                     <thead>
@@ -837,12 +854,18 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        {participants.map(p => (
-                                                            <tr key={p.id} className="border-b hover:bg-slate-50">
-                                                                <td className="p-3 font-bold text-slate-900">{p.firstName} {p.lastName}</td>
-                                                                <td className="p-3 text-blue-600 font-semibold">{p.phone}</td>
+                                                        {participants.length === 0 ? (
+                                                            <tr>
+                                                                <td colSpan="2" className="p-3 text-slate-400 italic">Zatím se neřihlásil žádný zájemce.</td>
                                                             </tr>
-                                                        ))}
+                                                        ) : (
+                                                            participants.map(p => (
+                                                                <tr key={p.id} className="border-b hover:bg-slate-50">
+                                                                    <td className="p-3 font-bold text-slate-900">{p.firstName} {p.lastName}</td>
+                                                                    <td className="p-3 text-blue-600 font-semibold">{p.phone}</td>
+                                                                </tr>
+                                                            ))
+                                                        )}
                                                     </tbody>
                                                 </table>
                                             </div>
@@ -853,7 +876,7 @@
                         )}
                     </main>
 
-                    {/* SPODNÍ LIŠTA S MODRÝM TLAČÍTKEM OK */}
+                    {/* SPODNÍ LIŠTA S TLAČÍTKEM OK */}
                     <div className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ${footerVisible ? 'translate-y-0' : 'translate-y-full'}`}>
                         <footer className="bg-white/95 backdrop-blur border-t border-slate-200 py-3.5 px-4 text-xs text-slate-600 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
                             <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
