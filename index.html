@@ -56,7 +56,6 @@
             const [auctions, setAuctions] = React.useState([]);
             const [participants, setParticipants] = React.useState([]);
 
-            // State pro úpravu účastníka v adminu
             const [editingPartId, setEditingPartId] = React.useState(null);
             const [partEditForm, setPartEditForm] = React.useState({ firstName: '', lastName: '', phone: '' });
 
@@ -184,7 +183,6 @@
                     alert('Prosím vyplňte všechna pole.'); return;
                 }
 
-                // Kontrola duplicity telefonu
                 const existing = participants.find(p => p.phone.trim() === regForm.phone.trim());
                 if (existing) {
                     alert('Účet s tímto telefonním číslem již v systému existuje!');
@@ -318,10 +316,11 @@
                 }
             };
 
-            // Akce pro správu účastníků
+            // OPRAVENÉ AKCE PRO ÚČASTNÍKY (použití ID namísto phone)
             const handleDeleteParticipant = async (partId) => {
                 if (confirm('Opravdu chcete nenávratně smazat tohoto účastníka z databáze?')) {
-                    await supabase.from('participants').delete().eq('id', partId);
+                    const { error } = await supabase.from('participants').delete().eq('id', partId);
+                    if (error) alert('Chyba při mazání: ' + error.message);
                     await fetchData();
                 }
             };
@@ -425,7 +424,6 @@
                 setBidAmountInput(e.target.value);
             };
 
-            // Dynamický výpočet maxima pro slider
             const numericBidInput = Number(bidAmountInput) || (currentAuction?.minBidStep || 100);
             let dynamicSliderMax = 20000;
             while (dynamicSliderMax <= numericBidInput) {
@@ -479,7 +477,6 @@
                         </div>
                     </header>
 
-                    {/* MODAL OKNO PRO PŘIHLÁŠENÍ A REGISTRACI */}
                     {showAuthMenu && (
                         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
                             <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-sm relative animate-in fade-in zoom-in-95 duration-200">
@@ -640,7 +637,7 @@
                             </div>
                         )}
 
-                        {/* DETAIL AUKCE */}
+                        {/* DETAIL AUKCI */}
                         {view === 'auction' && currentAuction && (
                             <div className="bg-white rounded-2xl p-4 md:p-6 shadow-xl border border-slate-200 space-y-4">
                                 <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-2 border-b pb-2">
@@ -754,7 +751,7 @@
                                                     }}
                                                     className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm py-3.5 rounded-xl shadow-lg transition transform active:scale-95"
                                                 >
-                                                    Přihodit navíc {Number(bidAmountInput || 0).toLocaleString()} Kč
+                                                    Přihodit navíc {Number(bidAmountInput || 0).toLocaleString()} Kč <span className="font-normal opacity-90">(Celkem: {(currentHighestPrice + Number(bidAmountInput || 0)).toLocaleString()} Kč)</span>
                                                 </button>
                                             </div>
                                         )}
@@ -803,7 +800,6 @@
                         {/* ADMIN REŽIM - SPRÁVA */}
                         {view === 'admin' && isAdmin && (
                             <div className="space-y-10">
-                                {/* SEKCE 1: AUKCE */}
                                 <div className="space-y-6">
                                     {editingAuctionId ? (
                                         <div className="bg-white p-6 rounded-2xl shadow space-y-4 border border-slate-200">
@@ -987,7 +983,6 @@
                                     )}
                                 </div>
 
-                                {/* SEKCE 2: ÚČASTNÍCI */}
                                 {!selectedAdminAuction && !editingAuctionId && (
                                     <div className="space-y-6">
                                         <h1 className="text-xl font-black border-t pt-8">Registrovaní účastníci</h1>
