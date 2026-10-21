@@ -17,12 +17,13 @@
         const toHM = (date) => `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
 
         function App() {
+            // Použití STABILNÍCH názvů klíčů pro localStorage, aby se data nikdy při aktualizaci nesmazala
             const [user, setUser] = React.useState(() => {
-                const saved = localStorage.getItem('iaukce_session_v10');
+                const saved = localStorage.getItem('iaukce_session');
                 return saved ? JSON.parse(saved) : null;
             });
             const [isAdmin, setIsAdmin] = React.useState(() => {
-                return localStorage.getItem('iaukce_auth_v10') === 'true';
+                return localStorage.getItem('iaukce_auth') === 'true';
             });
             
             const [view, setView] = React.useState('home');
@@ -46,18 +47,18 @@
                 return () => clearInterval(interval);
             }, []);
 
-            // Trvalé načítání aukcí
+            // Načtení aukcí se stabilním klíčem
             const [auctions, setAuctions] = React.useState(() => {
-                const saved = localStorage.getItem('iaukce_auctions_v10');
+                const saved = localStorage.getItem('iaukce_auctions');
                 if (saved) {
                     try { return JSON.parse(saved); } catch (e) { return []; }
                 }
                 return [];
             });
 
-            // Trvalé načítání účastníků
+            // Načtení účastníků se stabilním klíčem
             const [participants, setParticipants] = React.useState(() => {
-                const saved = localStorage.getItem('iaukce_participants_v10');
+                const saved = localStorage.getItem('iaukce_participants');
                 if (saved) {
                     try { return JSON.parse(saved); } catch (e) { return []; }
                 }
@@ -101,21 +102,21 @@
             const [showConfirmModal, setShowConfirmModal] = React.useState(false);
             const [pendingBid, setPendingBid] = React.useState(0);
 
-            // Automatické uložení při jakékoliv změně
+            // Okamžité ukládání do trvalého localStorage při jakékoliv změně
             React.useEffect(() => { 
-                localStorage.setItem('iaukce_session_v10', JSON.stringify(user)); 
+                localStorage.setItem('iaukce_session', JSON.stringify(user)); 
             }, [user]);
             
             React.useEffect(() => { 
-                localStorage.setItem('iaukce_auth_v10', isAdmin); 
+                localStorage.setItem('iaukce_auth', isAdmin); 
             }, [isAdmin]);
             
             React.useEffect(() => { 
-                localStorage.setItem('iaukce_auctions_v10', JSON.stringify(auctions)); 
+                localStorage.setItem('iaukce_auctions', JSON.stringify(auctions)); 
             }, [auctions]);
             
             React.useEffect(() => { 
-                localStorage.setItem('iaukce_participants_v10', JSON.stringify(participants)); 
+                localStorage.setItem('iaukce_participants', JSON.stringify(participants)); 
             }, [participants]);
 
             const handleAdminLogin = (e) => {
@@ -137,11 +138,12 @@
                 setIsAdmin(false); 
                 setUser(newUser);
 
+                // Bezpečné přidání nového účastníka bez přepsání starých
                 setParticipants(prev => {
                     const exists = prev.some(p => p.phone === newUser.phone);
                     if (!exists) {
                         const updated = [...prev, newUser];
-                        localStorage.setItem('iaukce_participants_v10', JSON.stringify(updated));
+                        localStorage.setItem('iaukce_participants', JSON.stringify(updated));
                         return updated;
                     }
                     return prev;
@@ -211,10 +213,10 @@
                     bids: []
                 };
 
-                // Okamžitá aktualizace stavu i localStorage
+                // Okamžitá aktualizace stavu a zápis do trvalého úložiště
                 const updatedAuctions = [created, ...auctions];
                 setAuctions(updatedAuctions);
-                localStorage.setItem('iaukce_auctions_v10', JSON.stringify(updatedAuctions));
+                localStorage.setItem('iaukce_auctions', JSON.stringify(updatedAuctions));
 
                 setSelectedAdminAuction(null);
                 alert('Aukce byla ihned vytvořena a uložena!');
@@ -243,7 +245,7 @@
                     return a;
                 });
                 setAuctions(updated);
-                localStorage.setItem('iaukce_auctions_v10', JSON.stringify(updated));
+                localStorage.setItem('iaukce_auctions', JSON.stringify(updated));
                 setEditingAuctionId(null);
                 alert('Aukce byla úspěšně aktualizována.');
             };
@@ -252,7 +254,7 @@
                 if (confirm('Opravdu chcete tuto aukci trvale smazat?')) {
                     const updated = auctions.filter(a => a.id !== aucId);
                     setAuctions(updated);
-                    localStorage.setItem('iaukce_auctions_v10', JSON.stringify(updated));
+                    localStorage.setItem('iaukce_auctions', JSON.stringify(updated));
                     if (selectedAdminAuction && selectedAdminAuction.id === aucId) setSelectedAdminAuction(null);
                 }
             };
@@ -264,7 +266,7 @@
                         return a;
                     });
                     setAuctions(updated);
-                    localStorage.setItem('iaukce_auctions_v10', JSON.stringify(updated));
+                    localStorage.setItem('iaukce_auctions', JSON.stringify(updated));
                 }
             };
 
@@ -315,7 +317,7 @@
                     return a;
                 });
                 setAuctions(updated);
-                localStorage.setItem('iaukce_auctions_v10', JSON.stringify(updated));
+                localStorage.setItem('iaukce_auctions', JSON.stringify(updated));
                 setShowConfirmModal(false);
                 setCustomBidInput('');
                 setBidSliderOffset(0);
@@ -641,7 +643,7 @@
                                 {selectedAdminAuction === 'new' ? (
                                     <div className="bg-white p-6 rounded-2xl shadow space-y-4 border border-slate-200">
                                         <div className="flex justify-between items-center border-b pb-3">
-                                            <h2 className="text-lg font-bold">Vytvořit novou aukci</h2>
+                                            <h2 className="text-lg font-bold">Nová aukce</h2>
                                             <button onClick={() => setSelectedAdminAuction(null)} className="text-xs text-slate-500">Zpět</button>
                                         </div>
                                         <form onSubmit={handleCreateAuction} className="space-y-3 text-xs">
