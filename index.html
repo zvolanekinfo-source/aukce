@@ -18,19 +18,19 @@
 
         function App() {
             const [user, setUser] = React.useState(() => {
-                const saved = localStorage.getItem('ad_session_v4');
+                const saved = localStorage.getItem('ad_session_v5');
                 return saved ? JSON.parse(saved) : null;
             });
             const [isAdmin, setIsAdmin] = React.useState(() => {
-                return localStorage.getItem('ad_auth_v4') === 'true';
+                return localStorage.getItem('ad_auth_v5') === 'true';
             });
             
             const [view, setView] = React.useState('home');
             const [selectedAuctionId, setSelectedAuctionId] = React.useState(null);
             const [selectedAdminAuction, setSelectedAdminAuction] = React.useState(null);
 
-            // Stav pro sbalení/rozbalení spodní lišty
             const [footerVisible, setFooterVisible] = React.useState(true);
+            const [showAdminLoginBox, setShowAdminLoginBox] = React.useState(false);
 
             const [regForm, setRegForm] = React.useState({ firstName: '', lastName: '', phone: '' });
             const [loginForm, setLoginForm] = React.useState({ lastName: '', phone: '' });
@@ -46,12 +46,12 @@
             }, []);
 
             const [auctions, setAuctions] = React.useState(() => {
-                const saved = localStorage.getItem('ad_auctions_v4');
+                const saved = localStorage.getItem('ad_auctions_v5');
                 return saved ? JSON.parse(saved) : [];
             });
 
             const [participants, setParticipants] = React.useState(() => {
-                const saved = localStorage.getItem('ad_participants_v4');
+                const saved = localStorage.getItem('ad_participants_v5');
                 return saved ? JSON.parse(saved) : [];
             });
 
@@ -79,10 +79,10 @@
 
             React.useEffect(() => {
                 const handleStorageChange = (e) => {
-                    if (e.key === 'ad_auctions_v4' && e.newValue) {
+                    if (e.key === 'ad_auctions_v5' && e.newValue) {
                         try { setAuctions(JSON.parse(e.newValue)); } catch (err) {}
                     }
-                    if (e.key === 'ad_participants_v4' && e.newValue) {
+                    if (e.key === 'ad_participants_v5' && e.newValue) {
                         try { setParticipants(JSON.parse(e.newValue)); } catch (err) {}
                     }
                 };
@@ -90,10 +90,10 @@
                 return () => window.removeEventListener('storage', handleStorageChange);
             }, []);
 
-            React.useEffect(() => { localStorage.setItem('ad_session_v4', JSON.stringify(user)); }, [user]);
-            React.useEffect(() => { localStorage.setItem('ad_auth_v4', isAdmin); }, [isAdmin]);
-            React.useEffect(() => { localStorage.setItem('ad_auctions_v4', JSON.stringify(auctions)); }, [auctions]);
-            React.useEffect(() => { localStorage.setItem('ad_participants_v4', JSON.stringify(participants)); }, [participants]);
+            React.useEffect(() => { localStorage.setItem('ad_session_v5', JSON.stringify(user)); }, [user]);
+            React.useEffect(() => { localStorage.setItem('ad_auth_v5', isAdmin); }, [isAdmin]);
+            React.useEffect(() => { localStorage.setItem('ad_auctions_v5', JSON.stringify(auctions)); }, [auctions]);
+            React.useEffect(() => { localStorage.setItem('ad_participants_v5', JSON.stringify(participants)); }, [participants]);
 
             const handleAdminLogin = async (e) => {
                 e.preventDefault();
@@ -193,7 +193,7 @@
                 };
                 const updatedAuctions = [created, ...auctions];
                 setAuctions(updatedAuctions);
-                localStorage.setItem('ad_auctions_v4', JSON.stringify(updatedAuctions));
+                localStorage.setItem('ad_auctions_v5', JSON.stringify(updatedAuctions));
                 setNewAuction({ title: '', productName: '', description: '', imageUrl: '', startPrice: 1000, startDate: toYMD(new Date()), startTime: toHM(new Date()), endDate: toYMD(new Date(Date.now() + 86400000)), endTime: toHM(new Date(Date.now() + 86400000)) });
                 
                 if (submitAction === 'draft') alert('Aukce byla bezpečně uložena do konceptů.');
@@ -206,7 +206,7 @@
                     return a;
                 });
                 setAuctions(updated);
-                localStorage.setItem('ad_auctions_v4', JSON.stringify(updated));
+                localStorage.setItem('ad_auctions_v5', JSON.stringify(updated));
             };
 
             const handleEndAuctionEarly = (aucId) => {
@@ -216,7 +216,7 @@
                         return a;
                     });
                     setAuctions(updated);
-                    localStorage.setItem('ad_auctions_v4', JSON.stringify(updated));
+                    localStorage.setItem('ad_auctions_v5', JSON.stringify(updated));
                     if (selectedAdminAuction && selectedAdminAuction.id === aucId) {
                         setSelectedAdminAuction({ ...selectedAdminAuction, forceEnded: true });
                     }
@@ -264,7 +264,7 @@
                     return a;
                 });
                 setAuctions(updated);
-                localStorage.setItem('ad_auctions_v4', JSON.stringify(updated));
+                localStorage.setItem('ad_auctions_v5', JSON.stringify(updated));
                 setShowConfirmModal(false);
                 setCustomBidInput('');
             };
@@ -317,7 +317,12 @@
                             ) : null}
 
                             {!isAdmin && !user ? (
-                                <button onClick={() => setView('admin-login')} className="text-xs bg-white hover:bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-300 transition shadow-sm font-medium">Admin</button>
+                                <button 
+                                    onClick={() => setView('register')} 
+                                    className="text-xs bg-blue-600 hover:bg-blue-500 text-white font-bold px-4 py-2 rounded-xl transition shadow"
+                                >
+                                    Přihlášení / Registrace
+                                </button>
                             ) : isAdmin ? (
                                 <button onClick={() => { setView('admin'); setSelectedAdminAuction(null); }} className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1.5 rounded-lg font-bold transition shadow">Správa aukcí</button>
                             ) : null}
@@ -412,50 +417,93 @@
                         )}
 
                         {view === 'register' && (
-                            <div className="max-w-md mx-auto bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
-                                <h2 className="text-2xl font-bold text-slate-900 mb-2">Registrace do aukce</h2>
-                                <p className="text-sm text-slate-600 mb-6 leading-relaxed bg-blue-50 p-4 rounded-xl border border-blue-100">
-                                    <strong className="text-blue-700 block mb-1 text-base font-bold">Důležité upozornění:</strong> 
-                                    Přes tento web neprobíhají žádné platby. Systém slouží výhradně k nalezení zájemce s nejvyšším příhozem.
-                                </p>
-                                <form onSubmit={handleRegister} className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">Křestní jméno</label>
-                                        <input type="text" required value={regForm.firstName} onChange={e => setRegForm({...regForm, firstName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="např. Jan" />
+                            <div className="max-w-md mx-auto space-y-4">
+                                <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
+                                    <h2 className="text-2xl font-bold text-slate-900 mb-2">Registrace do aukce</h2>
+                                    <p className="text-sm text-slate-600 mb-6 leading-relaxed bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                        <strong className="text-blue-700 block mb-1 text-base font-bold">Důležité upozornění:</strong> 
+                                        Přes tento web neprobíhají žádné platby. Systém slouží výhradně k nalezení zájemce s nejvyšším příhozem.
+                                    </p>
+                                    <form onSubmit={handleRegister} className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Křestní jméno</label>
+                                            <input type="text" required value={regForm.firstName} onChange={e => setRegForm({...regForm, firstName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="např. Jan" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Příjmení</label>
+                                            <input type="text" required value={regForm.lastName} onChange={e => setRegForm({...regForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="např. Novák" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Telefonní číslo</label>
+                                            <input type="tel" required value={regForm.phone} onChange={e => setRegForm({...regForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="+420 123 456 789" />
+                                        </div>
+                                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2">Dokončit registraci a vstoupit</button>
+                                    </form>
+                                    <div className="mt-6 text-center border-t border-slate-100 pt-4">
+                                        <button onClick={() => setView('login-existing')} className="text-sm text-blue-600 hover:underline font-bold">Už mám registraci</button>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">Příjmení</label>
-                                        <input type="text" required value={regForm.lastName} onChange={e => setRegForm({...regForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="např. Novák" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">Telefonní číslo</label>
-                                        <input type="tel" required value={regForm.phone} onChange={e => setRegForm({...regForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="+420 123 456 789" />
-                                    </div>
-                                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2">Dokončit registraci a vstoupit</button>
-                                </form>
-                                <div className="mt-6 text-center border-t border-slate-100 pt-4">
-                                    <button onClick={() => setView('login-existing')} className="text-sm text-blue-600 hover:underline font-bold">Už mám registraci</button>
+                                </div>
+
+                                {/* Diskrétní vyjížděcí pole pro Admina */}
+                                <div className="text-center">
+                                    <button onClick={() => setShowAdminLoginBox(!showAdminLoginBox)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">
+                                        {showAdminLoginBox ? 'Skrýt administrátorský vstup' : 'Přihlášení pro administrátora'}
+                                    </button>
+                                    {showAdminLoginBox && (
+                                        <form onSubmit={handleAdminLogin} className="mt-3 bg-white p-4 rounded-xl border border-slate-200 shadow-md text-left space-y-3">
+                                            <h3 className="text-xs font-bold text-indigo-700 uppercase tracking-wide">Admin vstup</h3>
+                                            <div>
+                                                <input type="text" placeholder="Uživatelské jméno" value={adminUser} onChange={e => setAdminUser(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900" />
+                                            </div>
+                                            <div>
+                                                <input type="password" placeholder="Heslo" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900" />
+                                                {adminLoginError && <span className="text-[10px] text-red-500 mt-1 block">Nesprávné údaje.</span>}
+                                            </div>
+                                            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg text-xs shadow">Vstoupit jako Admin</button>
+                                        </form>
+                                    )}
                                 </div>
                             </div>
                         )}
 
                         {view === 'login-existing' && (
-                            <div className="max-w-md mx-auto bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
-                                <h2 className="text-2xl font-bold text-slate-900 mb-2">Přihlášení do aukce</h2>
-                                <p className="text-sm text-slate-600 mb-6">Zadejte své příjmení a telefonní číslo, pod kterým jste se již dříve zaregistrovali.</p>
-                                <form onSubmit={handleLoginExisting} className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">Příjmení</label>
-                                        <input type="text" required value={loginForm.lastName} onChange={e => setLoginForm({...loginForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="Vaše příjmení" />
+                            <div className="max-w-md mx-auto space-y-4">
+                                <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
+                                    <h2 className="text-2xl font-bold text-slate-900 mb-2">Přihlášení do aukce</h2>
+                                    <p className="text-sm text-slate-600 mb-6">Zadejte své příjmení a telefonní číslo, pod kterým jste se již dříve zaregistrovali.</p>
+                                    <form onSubmit={handleLoginExisting} className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Příjmení</label>
+                                            <input type="text" required value={loginForm.lastName} onChange={e => setLoginForm({...loginForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="Vaše příjmení" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Telefonní číslo</label>
+                                            <input type="tel" required value={loginForm.phone} onChange={e => setLoginForm({...loginForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="Vaše telefonní číslo" />
+                                        </div>
+                                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2">Přihlásit se</button>
+                                    </form>
+                                    <div className="mt-6 text-center border-t border-slate-100 pt-4">
+                                        <button onClick={() => setView('register')} className="text-sm text-slate-600 hover:text-slate-900 font-semibold">← Zpět na registraci</button>
                                     </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">Telefonní číslo</label>
-                                        <input type="tel" required value={loginForm.phone} onChange={e => setLoginForm({...loginForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="Vaše telefonní číslo" />
-                                    </div>
-                                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2">Přihlásit se</button>
-                                </form>
-                                <div className="mt-6 text-center border-t border-slate-100 pt-4">
-                                    <button onClick={() => setView('register')} className="text-sm text-slate-600 hover:text-slate-900 font-semibold">← Zpět na registraci</button>
+                                </div>
+
+                                <div className="text-center">
+                                    <button onClick={() => setShowAdminLoginBox(!showAdminLoginBox)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">
+                                        {showAdminLoginBox ? 'Skrýt administrátorský vstup' : 'Přihlášení pro administrátora'}
+                                    </button>
+                                    {showAdminLoginBox && (
+                                        <form onSubmit={handleAdminLogin} className="mt-3 bg-white p-4 rounded-xl border border-slate-200 shadow-md text-left space-y-3">
+                                            <h3 className="text-xs font-bold text-indigo-700 uppercase tracking-wide">Admin vstup</h3>
+                                            <div>
+                                                <input type="text" placeholder="Uživatelské jméno" value={adminUser} onChange={e => setAdminUser(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900" />
+                                            </div>
+                                            <div>
+                                                <input type="password" placeholder="Heslo" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900" />
+                                                {adminLoginError && <span className="text-[10px] text-red-500 mt-1 block">Nesprávné údaje.</span>}
+                                            </div>
+                                            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 rounded-lg text-xs shadow">Vstoupit jako Admin</button>
+                                        </form>
+                                    )}
                                 </div>
                             </div>
                         )}
@@ -589,28 +637,6 @@
                                         <button onClick={() => setShowConfirmModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-xs transition">Zrušit</button>
                                         <button onClick={confirmBid} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-xs transition shadow">Odeslat příhoz</button>
                                     </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {view === 'admin-login' && (
-                            <div className="max-w-md mx-auto bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
-                                <h2 className="text-2xl font-bold text-slate-900 mb-2">Administrace – Přihlášení</h2>
-                                <p className="text-sm text-slate-600 mb-6">Zadejte přihlašovací údaje pro přístup ke správě aukcí.</p>
-                                <form onSubmit={handleAdminLogin} className="space-y-4">
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">Uživatelské jméno</label>
-                                        <input type="text" required placeholder="Zadejte jméno..." value={adminUser} onChange={e => setAdminUser(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-indigo-600 focus:bg-white" />
-                                    </div>
-                                    <div>
-                                        <label className="block text-xs font-bold text-slate-700 mb-1">Heslo</label>
-                                        <input type="password" required placeholder="Zadejte heslo..." value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-indigo-600 focus:bg-white" />
-                                        {adminLoginError && <span className="text-xs text-red-500 mt-1 block font-semibold">Nesprávné jméno nebo heslo.</span>}
-                                    </div>
-                                    <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2">Vstoupit do administrace</button>
-                                </form>
-                                <div className="mt-6 text-center">
-                                    <button onClick={() => setView('home')} className="text-sm text-slate-600 hover:underline">← Zpět na hlavní stránku</button>
                                 </div>
                             </div>
                         )}
@@ -831,7 +857,7 @@
 
                     </main>
 
-                    {/* Pevná dolní lišta s možností sbalení na tlačítko OK a rozbalení přes šipku */}
+                    {/* Pevná dolní lišta s modrým tlačítkem OK */}
                     <div className={`fixed bottom-0 left-0 w-full z-50 transition-transform duration-300 ${footerVisible ? 'translate-y-0' : 'translate-y-full'}`}>
                         <footer className="bg-white border-t border-slate-200 text-center py-4 px-4 text-xs text-slate-600 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] relative">
                             <div className="max-w-xl mx-auto space-y-1">
@@ -843,17 +869,17 @@
                                 </p>
                             </div>
                             
-                            {/* Tlačítko OK pro schování lišty dolů */}
+                            {/* Modré tlačítko OK pro schování lišty dolů */}
                             <button 
                                 onClick={() => setFooterVisible(false)}
-                                className="absolute right-4 top-1/2 -translate-y-1/2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs px-3 py-1.5 rounded-lg border border-slate-300 transition shadow-sm"
+                                className="absolute right-4 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow"
                             >
                                 OK
                             </button>
                         </footer>
                     </div>
 
-                    {/* Malá šipka pro vyjetí lišty zpět, pokud je schovaná */}
+                    {/* Malá šipka pro vyjetí lišty zpět */}
                     {!footerVisible && (
                         <button 
                             onClick={() => setFooterVisible(true)}
