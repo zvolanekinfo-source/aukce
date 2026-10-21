@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Aukce Duo</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen">
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const toYMD = (date) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+        const toHM = (date) => `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
+
+        function App() {
+            const [user, setUser] = React.useState(() => {
+                const saved = localStorage.getItem('ad_session_v5');
+                return saved ? JSON.parse(saved) : null;
+            });
+            const [isAdmin, setIsAdmin] = React.useState(() => {
+                return localStorage.getItem('ad_auth_v5') === 'true';
+            });
+            
+            const [view, setView] = React.useState('home');
+            const [selectedAuctionId, setSelectedAuctionId] = React.useState(null);
+            const [selectedAdminAuction, setSelectedAdminAuction] = React.useState(null);
+
+            const [footerVisible, setFooterVisible] = React.useState(true);
+            const [showAdminLoginBox, setShowAdminLoginBox] = React.useState(false);
+            const [showAuthMenu, setShowAuthMenu] = React.useState(false);
+
+            const [regForm, setRegForm] = React.useState({ firstName: '', lastName: '', phone: '' });
+            const [loginForm, setLoginForm] = React.useState({ lastName: '', phone: '' });
+            
+            const [adminUser, setAdminUser] = React.useState('');
+            const [adminPassword, setAdminPassword] = React.useState('');
+            const [adminLoginError, setAdminLoginError] = React.useState(false);
+
+            const [now, setNow] = React.useState(Date.now());
+            React.useEffect(() => {
+                const interval = setInterval(() => setNow(Date.now()), 1000);
+                return () => clearInterval(interval);
+            }, []);
+
+            const [auctions, setAuctions] = React.useState(() => {
+                const saved = localStorage.getItem('ad_auctions_v5');
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            const [participants, setParticipants] = React.useState(() => {
+                const saved = localStorage.getItem('ad_participants_v5');
+                return saved ? JSON.parse(saved) : [];
+            });
+
+            const today = new Date();
+            const tomorrow = new Date(Date.now() + 86400000);
+
+            const [newAuction, setNewAuction] = React.useState({
+                title: '',
+                productName: '',
+                description: '',
+                imageUrl: '',
+                startPrice: 1000,
+                startDate: toYMD(today),
+                startTime: toHM(today),
+                endDate: toYMD(tomorrow),
+                endTime: toHM(tomorrow)
+            });
+
+            const [submitAction, setSubmitAction] = React.useState('publish');
+
+            const [bidAmount, setBidAmount] = React.useState(100);
+            const [customBidInput, setCustomBidInput] = React.useState('');
+            const [showConfirmModal, setShowConfirmModal] = React.useState(false);
+            const [pendingBid, setPendingBid] = React.useState(0);
+
+            React.useEffect(() => {
+                const handleStorageChange = (e) => {
+                    if (e.key === 'ad_auctions_v5' && e.newValue) {
+                        try { setAuctions(JSON.parse(e.newValue)); } catch (err) {}
+                    }
+                    if (e.key === 'ad_participants_v5' && e.newValue) {
+                        try { setParticipants(JSON.parse(e.newValue)); } catch (err) {}
+                    }
+                };
+                window.addEventListener('storage', handleStorageChange);
+                return () => window.removeEventListener('storage', handleStorageChange);
+            }, []);
+
+            React.useEffect(() => { localStorage.setItem('ad_session_v5', JSON.stringify(user)); }, [user]);
+            React.useEffect(() => { localStorage.setItem('ad_auth_v5', isAdmin); }, [isAdmin]);
+            React.useEffect(() => { localStorage.setItem('ad_auctions_v5', JSON.stringify(auctions)); }, [auctions]);
+            React.useEffect(() => { localStorage.setItem('ad_participants_v5', JSON.stringify(participants)); }, [participants]);
+
+            const handleAdminLogin = async (e) => {
+                e.preventDefault();
+                try {
+                    const encoder = new TextEncoder();
+                    const inputData = encoder.encode(adminPassword);
+                    const inputHashBuffer = await crypto.subtle.digest('SHA-256', inputData);
+                    const inputHashArray = Array.from(new Uint8Array(inputHashBuffer));
+                    const inputHashHex = inputHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                    
+                    const targetPass = String.fromCharCode(64, 100, 109, 105, 110, 49); // @dmin1
+                    const targetData = encoder.encode(targetPass);
+                    const targetHashBuffer = await crypto.subtle.digest('SHA-256', targetData);
+                    const targetHashArray = Array.from(new Uint8Array(targetHashBuffer));
+                    const targetHashHex = targetHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+
+                    if (adminUser.trim() === 'Zvolanek1' && inputHashHex === targetHashHex) {
+                        setUser(null); setIsAdmin(true); setAdminLoginError(false); setView('admin');
+                    } else { setAdminLoginError(true); }
+                } catch (err) {
+                    const targetPass = String.fromCharCode(64, 100, 109, 105, 110, 49);
+                    if (adminUser.trim() === 'Zvolanek1' && adminPassword === targetPass) {
+                        setUser(null); setIsAdmin(true); setAdminLoginError(false); setView('admin');
+                    } else { setAdminLoginError(true); }
+                }
+            };
+
+            const handleRegister = (e) => {
+                e.preventDefault();
+                if (!regForm.firstName || !regForm.lastName || !regForm.phone) {
+                    alert('Prosím vyplňte všechna pole.'); return;
+                }
+                const newUser = { id: Date.now(), firstName: regForm.firstName.trim(), lastName: regForm.lastName.trim(), phone: regForm.phone.trim() };
+                setIsAdmin(false); setUser(newUser);
+                const updatedParticipants = [...participants];
+                if (!updatedParticipants.some(p => p.phone === newUser.phone)) {
+                    updatedParticipants.push(newUser);
+                    setParticipants(updatedParticipants);
+                }
+                setView('home');
+            };
+
+            const handleLoginExisting = (e) => {
+                e.preventDefault();
+                const found = participants.find(p => p.lastName.toLowerCase() === loginForm.lastName.trim().toLowerCase() && p.phone.trim() === loginForm.phone.trim());
+                if (found) { setIsAdmin(false); setUser(found); setView('home'); } 
+                else { alert('Účastník s tímto příjmením a telefonním číslem nebyl nalezen.'); }
+            };
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const img = new Image();
+                    img.onload = () => {
+                        const canvas = document.createElement('canvas');
+                        const MAX_WIDTH = 800;
+                        let scale = 1;
+                        if (img.width > MAX_WIDTH) { scale = MAX_WIDTH / img.width; }
+                        canvas.width = img.width * scale;
+                        canvas.height = img.height * scale;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        const base64 = canvas.toDataURL('image/jpeg', 0.8);
+                        setNewAuction({...newAuction, imageUrl: base64});
+                    };
+                    img.src = event.target.result;
+                };
+                reader.readAsDataURL(file);
+            };
+
+            const handleCreateAuction = (e) => {
+                e.preventDefault();
+                const startStr = `${newAuction.startDate}T${newAuction.startTime}`;
+                const endStr = `${newAuction.endDate}T${newAuction.endTime}`;
+                const start = new Date(startStr).getTime();
+                const end = new Date(endStr).getTime();
+                
+                if (end <= start) {
+                    alert('Čas ukončení musí být později než čas spuštění.');
+                    return;
+                }
+
+                const created = {
+                    id: 'auc-' + Date.now(),
+                    title: newAuction.title,
+                    productName: newAuction.productName,
+                    description: newAuction.description,
+                    imageUrl: newAuction.imageUrl || '',
+                    startPrice: Number(newAuction.startPrice),
+                    startTime: new Date(startStr).toISOString(),
+                    endTime: new Date(endStr).toISOString(),
+                    forceEnded: false,
+                    isDraft: submitAction === 'draft',
+                    bids: []
+                };
+                const updatedAuctions = [created, ...auctions];
+                setAuctions(updatedAuctions);
+                localStorage.setItem('ad_auctions_v5', JSON.stringify(updatedAuctions));
+                setNewAuction({ title: '', productName: '', description: '', imageUrl: '', startPrice: 1000, startDate: toYMD(new Date()), startTime: toHM(new Date()), endDate: toYMD(new Date(Date.now() + 86400000)), endTime: toHM(new Date(Date.now() + 86400000)) });
+                
+                if (submitAction === 'draft') alert('Aukce byla bezpečně uložena do konceptů.');
+                else alert('Aukce byla úspěšně vytvořena a naplánována!');
+            };
+
+            const handlePublishDraft = (aucId) => {
+                const updated = auctions.map(a => {
+                    if (a.id === aucId) return { ...a, isDraft: false };
+                    return a;
+                });
+                setAuctions(updated);
+                localStorage.setItem('ad_auctions_v5', JSON.stringify(updated));
+            };
+
+            const handleEndAuctionEarly = (aucId) => {
+                if (confirm('Opravdu chcete tuto aukci okamžitě ukončit?')) {
+                    const updated = auctions.map(a => {
+                        if (a.id === aucId) return { ...a, forceEnded: true };
+                        return a;
+                    });
+                    setAuctions(updated);
+                    localStorage.setItem('ad_auctions_v5', JSON.stringify(updated));
+                    if (selectedAdminAuction && selectedAdminAuction.id === aucId) {
+                        setSelectedAdminAuction({ ...selectedAdminAuction, forceEnded: true });
+                    }
+                }
+            };
+
+            const getAuctionStatus = (auc) => {
+                if (auc.isDraft) return 'draft';
+                if (auc.forceEnded) return 'ended';
+                const start = new Date(auc.startTime).getTime();
+                const end = new Date(auc.endTime).getTime();
+                if (now < start) return 'scheduled';
+                if (now >= start && now < end) return 'active';
+                return 'ended';
+            };
+
+            const getTimeLeftFormat = (targetTime) => {
+                const diff = targetTime - now;
+                if (diff <= 0) return '00:00:00';
+                const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+                const m = Math.floor((diff / 1000 / 60) % 60);
+                const s = Math.floor((diff / 1000) % 60);
+                return `${d > 0 ? d + 'd ' : ''}${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            };
+
+            const handlePlaceBidSubmit = (amount) => {
+                setPendingBid(amount);
+                setShowConfirmModal(true);
+            };
+
+            const confirmBid = () => {
+                const updated = auctions.map(a => {
+                    if (a.id === selectedAuctionId) {
+                        const newBidObj = {
+                            id: Date.now(),
+                            firstName: user.firstName,
+                            lastName: user.lastName,
+                            phone: user.phone,
+                            amount: pendingBid,
+                            time: new Date().toLocaleTimeString()
+                        };
+                        return { ...a, bids: [newBidObj, ...a.bids] };
+                    }
+                    return a;
+                });
+                setAuctions(updated);
+                localStorage.setItem('ad_auctions_v5', JSON.stringify(updated));
+                setShowConfirmModal(false);
+                setCustomBidInput('');
+            };
+
+            const currentAuction = auctions.find(a => a.id === selectedAuctionId);
+
+            const getCurrentHighest = (auc) => {
+                if (!auc.bids || auc.bids.length === 0) return auc.startPrice;
+                return Math.max(...auc.bids.map(b => b.amount));
+            };
+
+            const getLeaderName = (auc) => {
+                if (!auc.bids || auc.bids.length === 0) return 'Zatím nikdo';
+                const sorted = [...auc.bids].sort((a,b) => b.amount - a.amount);
+                return sorted[0].firstName;
+            };
+
+            const DrumsticksLogo = () => (
+                <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setView('home'); setSelectedAuctionId(null); setSelectedAdminAuction(null); }}>
+                    <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md flex items-center justify-center">
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11l-6-6m0 0l-6 6m6-6v12M5 19h14" />
+                        </svg>
+                    </div>
+                    <div>
+                        <span className="text-xl font-black tracking-wider text-slate-900">Aukce <span className="text-blue-600">Duo</span></span>
+                        <span className="block text-[10px] text-slate-500 tracking-widest uppercase font-semibold">Soukromé aukce</span>
+                    </div>
+                </div>
+            );
+
+            const publicAuctions = auctions.filter(a => !a.isDraft);
+
+            return (
+                <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 pb-24 relative">
+                    <header className="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-40 px-4 py-3 flex items-center justify-between shadow-sm">
+                        <DrumsticksLogo />
+
+                        <div className="flex items-center gap-3">
+                            {isAdmin ? (
+                                <div className="text-xs md:text-sm bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-200 text-slate-700 shadow-inner">
+                                    Přihlášen: <span className="font-bold text-indigo-600">Administrátor</span>
+                                    <button onClick={() => { setIsAdmin(false); setView('home'); }} className="ml-2 text-red-500 hover:underline font-medium">Odhlásit</button>
+                                </div>
+                            ) : user ? (
+                                <div className="text-xs md:text-sm bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200 text-slate-700 shadow-inner">
+                                    Přihlášen: <span className="font-bold text-blue-600">{user.firstName} {user.lastName}</span>
+                                    <button onClick={() => { setUser(null); setView('home'); }} className="ml-2 text-red-500 hover:underline font-medium">Odhlásit</button>
+                                </div>
+                            ) : null}
+
+                            {!isAdmin && !user ? (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => { setShowAuthMenu(!showAuthMenu); setShowAdminLoginBox(false); }}
+                                        className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl transition shadow-md focus:outline-none focus:ring-2 focus:ring-blue-300"
+                                        style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                                    >
+                                        Přihlášení / Registrace
+                                    </button>
+                                    {showAuthMenu && (
+                                        <div className="absolute right-0 top-full mt-2 w-72 max-w-[calc(100vw-2rem)] bg-white rounded-xl border border-slate-200 shadow-xl p-3 z-50 text-left">
+                                            <button
+                                                onClick={() => { setView('register'); setShowAuthMenu(false); }}
+                                                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg shadow-sm transition"
+                                            >
+                                                Přihlášení / Registrace účastníka
+                                            </button>
+                                            <div className="mt-3 pt-3 border-t border-slate-100">
+                                                <button
+                                                    onClick={() => setShowAdminLoginBox(!showAdminLoginBox)}
+                                                    className="text-xs text-slate-500 hover:text-blue-700 font-semibold"
+                                                >
+                                                    {showAdminLoginBox ? 'Skrýt přihlášení administrátora' : 'Přihlášení administrátora'}
+                                                </button>
+                                                {showAdminLoginBox && (
+                                                    <form onSubmit={handleAdminLogin} className="mt-3 space-y-2">
+                                                        <input type="text" placeholder="Uživatelské jméno" value={adminUser} onChange={e => setAdminUser(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900" />
+                                                        <input type="password" placeholder="Heslo" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900" />
+                                                        {adminLoginError && <span className="text-xs text-red-600 block">Nesprávné údaje.</span>}
+                                                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 rounded-lg text-sm shadow-sm">Přihlásit jako Admin</button>
+                                                    </form>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            ) : isAdmin ? (
+                                <button onClick={() => { setView('admin'); setSelectedAdminAuction(null); }} className="text-sm bg-blue-600 hover:bg-blue-700 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-md">Správa aukcí</button>
+                            ) : null}
+                        </div>
+                    </header>
+
+                    <main className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6">
+                        
+                        {view === 'home' && !selectedAuctionId && (
+                            <div className="space-y-6">
+                                <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-6 md:p-8 rounded-2xl shadow-lg">
+                                    <h1 className="text-2xl md:text-3xl font-black mb-2">Vítejte na aukci iPhone Duo</h1>
+                                    <p className="text-blue-100 text-sm leading-relaxed">
+                                        Tuto stránku jsem vytvořil, abych urychlil a zjednodušil hledání zájemců o předobjednávku iPhonu.
+                                    </p>
+                                    <p className="text-blue-100 text-sm leading-relaxed mt-3">
+                                        Máte-li zájem o předobjednávku, přihlaste se prosím svým jménem a telefonním číslem, abych vás mohl kontaktovat. Děkuji a těším se na vás 23. 10. 2026!
+                                    </p>
+                                </div>
+
+                                <h2 className="text-xl font-bold text-slate-900 border-b border-slate-200 pb-2">Probíhající a připravené aukce</h2>
+                                
+                                {publicAuctions.length === 0 ? (
+                                    <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-sm">
+                                        <p className="text-slate-500 text-sm">Aktuálně neprobíhají žádné aukce.</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-6 md:grid-cols-2">
+                                        {publicAuctions.map(auc => {
+                                            const currentPrice = getCurrentHighest(auc);
+                                            const status = getAuctionStatus(auc);
+                                            const startTime = new Date(auc.startTime).getTime();
+                                            const endTime = new Date(auc.endTime).getTime();
+
+                                            return (
+                                                <div key={auc.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-md flex flex-col justify-between hover:border-blue-300 transition">
+                                                    <div>
+                                                        <div className="h-56 relative bg-white flex items-center justify-center p-2 border-b border-slate-100">
+                                                            {auc.imageUrl ? (
+                                                                <img src={auc.imageUrl} alt={auc.productName} className="w-full h-full object-contain drop-shadow-sm" />
+                                                            ) : (
+                                                                <span className="text-slate-300 text-xs">Bez fotografie</span>
+                                                            )}
+                                                            
+                                                            <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
+                                                                <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-md ${
+                                                                    status === 'active' ? 'bg-emerald-600 text-white' : 
+                                                                    status === 'scheduled' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-white'
+                                                                }`}>
+                                                                    {status === 'active' ? 'Probíhá' : status === 'scheduled' ? 'Připravuje se' : 'Skončila'}
+                                                                </span>
+                                                                
+                                                                {status === 'active' && (
+                                                                    <span className="bg-white/90 backdrop-blur text-slate-800 text-[10px] font-bold px-2 py-1 rounded-md shadow flex items-center gap-1 border border-slate-200">
+                                                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                                        Končí za: {getTimeLeftFormat(endTime)}
+                                                                    </span>
+                                                                )}
+                                                                {status === 'scheduled' && (
+                                                                    <span className="bg-white/90 backdrop-blur text-slate-800 text-[10px] font-bold px-2 py-1 rounded-md shadow flex items-center gap-1 border border-slate-200">
+                                                                        Začíná za: {getTimeLeftFormat(startTime)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="p-5 space-y-2">
+                                                            <span className="text-xs text-blue-600 font-bold uppercase tracking-wide">{auc.title}</span>
+                                                            <h3 className="text-lg font-bold text-slate-900">{auc.productName}</h3>
+                                                            <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">{auc.description}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-500 block uppercase font-semibold">Aktuální cena</span>
+                                                            <span className="text-xl font-black text-emerald-600">{currentPrice.toLocaleString()} Kč</span>
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => {
+                                                                if (isAdmin) alert('Jste přihlášeni jako Admin. Pro účast se odhlaste a přihlaste jako běžný účastník.');
+                                                                else if (!user) setView('register');
+                                                                else { setSelectedAuctionId(auc.id); setView('auction'); }
+                                                            }}
+                                                            className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition shadow"
+                                                        >
+                                                            Vstoupit →
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {view === 'register' && (
+                            <div className="max-w-md mx-auto space-y-4">
+                                <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
+                                    <h2 className="text-2xl font-bold text-slate-900 mb-2">Registrace do aukce</h2>
+                                    <p className="text-sm text-slate-600 mb-6 leading-relaxed bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                        <strong className="text-blue-700 block mb-1 text-base font-bold">Důležité upozornění:</strong> 
+                                        Přes tento web neprobíhají žádné platby. Systém slouží výhradně k nalezení zájemce s nejvyšším příhozem.
+                                    </p>
+                                    <form onSubmit={handleRegister} className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Křestní jméno</label>
+                                            <input type="text" required value={regForm.firstName} onChange={e => setRegForm({...regForm, firstName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="např. Jan" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Příjmení</label>
+                                            <input type="text" required value={regForm.lastName} onChange={e => setRegForm({...regForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="např. Novák" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Telefonní číslo</label>
+                                            <input type="tel" required value={regForm.phone} onChange={e => setRegForm({...regForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="+420 123 456 789" />
+                                        </div>
+                                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2">Dokončit registraci a vstoupit</button>
+                                    </form>
+                                    <div className="mt-6 text-center border-t border-slate-100 pt-4">
+                                        <button onClick={() => setView('login-existing')} className="text-sm text-blue-600 hover:underline font-bold">Už mám registraci</button>
+                                    </div>
+                                </div>
+
+                            </div>
+                        )}
+
+                        {view === 'login-existing' && (
+                            <div className="max-w-md mx-auto space-y-4">
+                                <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
+                                    <h2 className="text-2xl font-bold text-slate-900 mb-2">Přihlášení do aukce</h2>
+                                    <p className="text-sm text-slate-600 mb-6">Zadejte své příjmení a telefonní číslo, pod kterým jste se již dříve zaregistrovali.</p>
+                                    <form onSubmit={handleLoginExisting} className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Příjmení</label>
+                                            <input type="text" required value={loginForm.lastName} onChange={e => setLoginForm({...loginForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="Vaše příjmení" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Telefonní číslo</label>
+                                            <input type="tel" required value={loginForm.phone} onChange={e => setLoginForm({...loginForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="Vaše telefonní číslo" />
+                                        </div>
+                                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2">Přihlásit se</button>
+                                    </form>
+                                    <div className="mt-6 text-center border-t border-slate-100 pt-4">
+                                        <button onClick={() => setView('register')} className="text-sm text-slate-600 hover:text-slate-900 font-semibold">← Zpět na registraci</button>
+                                    </div>
+                                </div>
+
+                            </div>
+                        )}
+
+                        {view === 'auction' && currentAuction && (() => {
+                            const status = getAuctionStatus(currentAuction);
+                            const startTime = new Date(currentAuction.startTime).getTime();
+                            const endTime = new Date(currentAuction.endTime).getTime();
+
+                            return (
+                                <div className="space-y-6">
+                                    <button onClick={() => { setSelectedAuctionId(null); setView('home'); }} className="text-xs text-slate-600 hover:text-slate-900 flex items-center gap-1 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm font-bold w-fit">
+                                        ← Zpět na přehled aukcí
+                                    </button>
+
+                                    <div className="grid md:grid-cols-2 gap-6">
+                                        <div className="space-y-4">
+                                            <div className="rounded-2xl border border-slate-200 bg-white shadow-md p-2 h-72 flex items-center justify-center">
+                                                {currentAuction.imageUrl ? (
+                                                    <img src={currentAuction.imageUrl} alt={currentAuction.productName} className="max-w-full max-h-full object-contain drop-shadow-sm" />
+                                                ) : (
+                                                    <span className="text-slate-300 text-sm">Bez fotografie</span>
+                                                )}
+                                            </div>
+                                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-md space-y-3">
+                                                <span className="text-xs text-blue-600 font-bold uppercase tracking-wide">{currentAuction.title}</span>
+                                                <h1 className="text-2xl font-black text-slate-900">{currentAuction.productName}</h1>
+                                                <p className="text-slate-600 text-sm leading-relaxed">{currentAuction.description}</p>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-6">
+                                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-md space-y-5 relative overflow-hidden">
+                                                <div className={`-mt-6 -mx-6 mb-4 p-4 text-center font-bold text-white shadow-sm flex flex-col justify-center items-center ${
+                                                    status === 'active' ? 'bg-emerald-600' :
+                                                    status === 'scheduled' ? 'bg-blue-600' : 'bg-slate-700'
+                                                }`}>
+                                                    <span className="text-[10px] uppercase tracking-widest opacity-80">
+                                                        {status === 'active' ? 'Aukce končí za' : status === 'scheduled' ? 'Aukce se otevře za' : 'Aukce uzavřena'}
+                                                    </span>
+                                                    {status !== 'ended' && (
+                                                        <span className="text-2xl tracking-wider mt-1">{status === 'active' ? getTimeLeftFormat(endTime) : getTimeLeftFormat(startTime)}</span>
+                                                    )}
+                                                </div>
+
+                                                <div className="text-center py-5 bg-blue-50/50 rounded-2xl border border-blue-100">
+                                                    <span className="text-xs text-slate-500 block mb-1 uppercase font-bold tracking-wider">Aktuální nejvyšší nabídka</span>
+                                                    <span className="text-3xl md:text-4xl font-black text-emerald-600">{getCurrentHighest(currentAuction).toLocaleString()} Kč</span>
+                                                    <span className="block text-xs text-slate-600 mt-2 font-medium">Vede: <strong className="text-slate-900 text-sm">{getLeaderName(currentAuction)}</strong></span>
+                                                </div>
+
+                                                {status === 'active' && (
+                                                    <div className="space-y-4 pt-2">
+                                                        <span className="text-xs font-bold text-slate-700 block uppercase tracking-wide">Zvolte výši příhozu:</span>
+                                                        <div className="grid grid-cols-4 gap-2">
+                                                            {[100, 500, 1000, 5000].map(val => (
+                                                                <button key={val} onClick={() => handlePlaceBidSubmit(getCurrentHighest(currentAuction) + val)} className="bg-slate-100 hover:bg-blue-50 hover:border-blue-300 text-slate-800 font-bold text-xs py-3 rounded-xl border border-slate-200 transition shadow-sm">
+                                                                    +{val} Kč
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                        <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                                                            <div className="flex justify-between text-xs text-slate-600 font-semibold">
+                                                                <span>Posuvník příhozu</span>
+                                                                <span className="text-emerald-600 font-bold">+{bidAmount} Kč (Celkem: {(getCurrentHighest(currentAuction) + bidAmount).toLocaleString()} Kč)</span>
+                                                            </div>
+                                                            <input type="range" min="100" max="10000" step="100" value={bidAmount} onChange={e => setBidAmount(Number(e.target.value))} className="w-full accent-blue-600 cursor-pointer" />
+                                                            <button onClick={() => handlePlaceBidSubmit(getCurrentHighest(currentAuction) + bidAmount)} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-3 rounded-xl text-sm transition shadow-md mt-1">
+                                                                Přihodit +{bidAmount} Kč posuvníkem
+                                                            </button>
+                                                        </div>
+                                                        <div className="flex gap-2 pt-1">
+                                                            <input type="number" placeholder="Zadejte libovolnou částku..." value={customBidInput} onChange={e => setCustomBidInput(e.target.value)} className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" />
+                                                            <button onClick={() => {
+                                                                const val = Number(customBidInput);
+                                                                const currentHigh = getCurrentHighest(currentAuction);
+                                                                if (val > currentHigh) { handlePlaceBidSubmit(val); } else { alert(`Nová nabídka musí být vyšší než aktuální cena (${currentHigh.toLocaleString()} Kč).`); }
+                                                            }} className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition shadow">Potvrdit</button>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {status === 'scheduled' && (
+                                                    <div className="text-center py-6 bg-blue-50 rounded-xl border border-blue-200">
+                                                        <span className="text-lg font-bold text-blue-800">Aukce ještě nezačala</span>
+                                                        <p className="text-xs text-blue-700 mt-2">Ovladače pro přihazování se automaticky odemknou po uplynutí odpočtu.</p>
+                                                    </div>
+                                                )}
+
+                                                {status === 'ended' && (
+                                                    <div className="text-center py-6 bg-slate-100 rounded-xl border border-slate-300">
+                                                        <span className="text-lg font-bold text-slate-800">Aukce je uzavřena</span>
+                                                        <p className="text-xs text-slate-600 mt-2">
+                                                            Vítězem se stává: <strong className="text-slate-900">{getLeaderName(currentAuction)}</strong><br/>
+                                                            s konečnou nabídkou <strong className="text-emerald-600">{getCurrentHighest(currentAuction).toLocaleString()} Kč</strong>
+                                                        </p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-md space-y-3">
+                                                <h3 className="text-xs font-bold text-slate-700 uppercase tracking-wider border-b border-slate-100 pb-2">Historie příhozů (veřejná)</h3>
+                                                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                                                    {currentAuction.bids && currentAuction.bids.length > 0 ? (
+                                                        currentAuction.bids.map((b, idx) => (
+                                                            <div key={b.id || idx} className={`flex justify-between items-center p-3 rounded-xl text-xs ${idx === 0 ? 'bg-emerald-50 border border-emerald-200' : 'bg-slate-50 border border-slate-100'}`}>
+                                                                <div>
+                                                                    <span className="font-bold text-slate-900">{b.firstName}</span>
+                                                                    <span className="text-slate-500 ml-2">{b.time}</span>
+                                                                </div>
+                                                                <span className="font-black text-emerald-600 text-sm">{b.amount.toLocaleString()} Kč</span>
+                                                            </div>
+                                                        ))
+                                                    ) : (
+                                                        <p className="text-xs text-slate-400 text-center py-4">Zatím nebyl podán žádný příhoz.</p>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                        {showConfirmModal && (
+                            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
+                                <div className="bg-white border border-slate-200 p-6 rounded-2xl max-w-sm w-full shadow-2xl space-y-4 text-center">
+                                    <h3 className="text-lg font-bold text-slate-900">Potvrzení příhozu</h3>
+                                    <p className="text-sm text-slate-600">Opravdu chcete nabídnout částku <strong className="text-emerald-600 text-base">{pendingBid.toLocaleString()} Kč</strong>?</p>
+                                    <div className="flex gap-2 pt-2">
+                                        <button onClick={() => setShowConfirmModal(false)} className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold py-3 rounded-xl text-xs transition">Zrušit</button>
+                                        <button onClick={confirmBid} className="flex-1 bg-blue-600 hover:bg-blue-500 text-white font-bold py-3 rounded-xl text-xs transition shadow">Odeslat příhoz</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'admin' && isAdmin && (
+                            <div className="space-y-8">
+                                <div className="flex justify-between items-center border-b border-slate-200 pb-4">
+                                    <div>
+                                        <h1 className="text-2xl font-black text-slate-900">Administrační panel</h1>
+                                        <p className="text-xs text-slate-500">Správa aukcí, produktů a detailů účastníků</p>
+                                    </div>
+                                    <button onClick={() => setView('home')} className="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold px-4 py-2 rounded-xl border border-slate-300 transition">Zpět na web</button>
+                                </div>
+
+                                <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-md space-y-4">
+                                    <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">Vytvořit novou aukci</h2>
+                                    <form onSubmit={handleCreateAuction} className="grid md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Název aukce</label>
+                                            <input type="text" required value={newAuction.title} onChange={e => setNewAuction({...newAuction, title: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:bg-white" placeholder="např. Exkluzivní výprodej" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Název produktu</label>
+                                            <input type="text" required value={newAuction.productName} onChange={e => setNewAuction({...newAuction, productName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:bg-white" placeholder="např. Bicí souprava" />
+                                        </div>
+                                        <div className="md:col-span-2">
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Popis produktu</label>
+                                            <textarea required rows="2" value={newAuction.description} onChange={e => setNewAuction({...newAuction, description: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:bg-white" placeholder="Detailní popis..."></textarea>
+                                        </div>
+                                        
+                                        <div className="bg-indigo-50/50 p-4 rounded-xl border border-indigo-100 space-y-4 md:col-span-2">
+                                            <h3 className="text-xs font-black text-indigo-800 uppercase tracking-wide">Plánování spuštění a ukončení</h3>
+                                            <div className="grid md:grid-cols-4 gap-4">
+                                                <div className="md:col-span-2 grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Datum spuštění</label>
+                                                        <input type="date" required value={newAuction.startDate} onChange={e => setNewAuction({...newAuction, startDate: e.target.value})} className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 text-sm focus:border-indigo-500 focus:outline-none" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Čas spuštění</label>
+                                                        <input type="time" required value={newAuction.startTime} onChange={e => setNewAuction({...newAuction, startTime: e.target.value})} className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 text-sm focus:border-indigo-500 focus:outline-none" />
+                                                    </div>
+                                                </div>
+                                                <div className="md:col-span-2 grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Datum ukončení</label>
+                                                        <input type="date" required value={newAuction.endDate} onChange={e => setNewAuction({...newAuction, endDate: e.target.value})} className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 text-sm focus:border-indigo-500 focus:outline-none" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-slate-700 mb-1">Čas ukončení</label>
+                                                        <input type="time" required value={newAuction.endTime} onChange={e => setNewAuction({...newAuction, endTime: e.target.value})} className="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-slate-900 text-sm focus:border-indigo-500 focus:outline-none" />
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Fotografie produktu</label>
+                                            <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2 text-slate-900 text-sm focus:bg-white file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-xs file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100" />
+                                            {newAuction.imageUrl && <div className="mt-2 text-xs font-bold text-emerald-600">Fotka nahrána a připravena.</div>}
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Počáteční cena (Kč)</label>
+                                            <input type="number" required value={newAuction.startPrice} onChange={e => setNewAuction({...newAuction, startPrice: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:bg-white" placeholder="např. 5000" />
+                                        </div>
+                                        
+                                        <div className="md:col-span-2 pt-2 flex flex-col md:flex-row gap-3">
+                                            <button 
+                                                type="submit" 
+                                                onClick={() => setSubmitAction('draft')}
+                                                className="bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold px-6 py-3 rounded-xl text-sm transition"
+                                            >
+                                                Uložit jako koncept
+                                            </button>
+                                            <button 
+                                                type="submit" 
+                                                onClick={() => setSubmitAction('publish')}
+                                                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold px-6 py-3 rounded-xl text-sm transition shadow flex-1"
+                                            >
+                                                Vytvořit a naplánovat ostrou aukci
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
+
+                                <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-md space-y-4">
+                                    <h2 className="text-lg font-bold text-slate-900 border-b border-slate-100 pb-2">Přehled a správa všech aukcí</h2>
+                                    {auctions.length === 0 ? (
+                                        <div className="bg-slate-50 rounded-xl border border-slate-200 p-6 text-center">
+                                            <p className="text-sm text-slate-500">Zatím nebyly vytvořeny žádné aukce ani koncepty.</p>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-3">
+                                            {auctions.map(auc => {
+                                                const status = getAuctionStatus(auc);
+                                                return (
+                                                    <div key={auc.id} className={`p-4 rounded-xl border flex flex-col md:flex-row justify-between items-start md:items-center gap-4 ${status === 'draft' ? 'bg-slate-100 border-slate-300 border-dashed' : 'bg-slate-50 border-slate-200'}`}>
+                                                        <div>
+                                                            <span className={`text-xs font-bold uppercase ${status === 'draft' ? 'text-slate-500' : 'text-blue-600'}`}>{auc.title}</span>
+                                                            <h3 className={`font-bold text-base ${status === 'draft' ? 'text-slate-700' : 'text-slate-900'}`}>{auc.productName}</h3>
+                                                            {status !== 'draft' ? (
+                                                                <span className="text-xs text-slate-500">Aktuální cena: <strong className="text-emerald-600">{getCurrentHighest(auc).toLocaleString()} Kč</strong> | Vede: <strong className="text-slate-900">{getLeaderName(auc)}</strong></span>
+                                                            ) : (
+                                                                <span className="text-xs text-slate-500">Připraveno ke zveřejnění</span>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex items-center gap-2 flex-wrap">
+                                                            {status === 'draft' && (
+                                                                <button onClick={() => handlePublishDraft(auc.id)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-4 py-2 rounded-lg transition shadow-sm">Zveřejnit</button>
+                                                            )}
+                                                            <button 
+                                                                onClick={() => {
+                                                                    const freshAuc = auctions.find(a => a.id === auc.id);
+                                                                    setSelectedAdminAuction(freshAuc);
+                                                                    setView('admin-auction-detail');
+                                                                }}
+                                                                className="bg-indigo-100 hover:bg-indigo-200 text-indigo-800 text-xs font-bold px-3 py-2 rounded-lg transition border border-indigo-300"
+                                                            >
+                                                                Detail aukce
+                                                            </button>
+                                                            {status === 'active' && (
+                                                                <button onClick={() => handleEndAuctionEarly(auc.id)} className="bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold px-3 py-2 rounded-lg transition shadow-sm">Ukončit ihned</button>
+                                                            )}
+                                                            <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase shadow-sm ${
+                                                                status === 'active' ? 'bg-emerald-600 text-white' : 
+                                                                status === 'scheduled' ? 'bg-blue-600 text-white' : 
+                                                                status === 'draft' ? 'bg-slate-400 text-white' : 'bg-slate-700 text-white'
+                                                            }`}>
+                                                                {status === 'active' ? 'Probíhá' : status === 'scheduled' ? 'Připravuje se' : status === 'draft' ? 'Koncept' : 'Skončila'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'admin-auction-detail' && selectedAdminAuction && (() => {
+                            const status = getAuctionStatus(selectedAdminAuction);
+                            return (
+                                <div className="space-y-6">
+                                    <button onClick={() => { setView('admin'); setSelectedAdminAuction(null); }} className="text-xs text-slate-600 hover:text-slate-900 flex items-center gap-1 bg-white px-3.5 py-2 rounded-xl border border-slate-200 shadow-sm font-bold w-fit">
+                                        ← Zpět na přehled administrace
+                                    </button>
+
+                                    <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-md">
+                                        <div className="flex flex-col md:flex-row justify-between items-start mb-6 border-b border-slate-100 pb-4 gap-4">
+                                            <div>
+                                                <span className="text-xs text-indigo-600 font-bold uppercase">{selectedAdminAuction.title}</span>
+                                                <h2 className="text-2xl font-black text-slate-900">{selectedAdminAuction.productName}</h2>
+                                                <div className="mt-2 flex gap-4 text-xs font-semibold text-slate-500">
+                                                    <span>Začátek: {new Date(selectedAdminAuction.startTime).toLocaleString()}</span>
+                                                    <span>Konec: {new Date(selectedAdminAuction.endTime).toLocaleString()}</span>
+                                                </div>
+                                            </div>
+                                            <span className={`text-xs font-bold px-3 py-1 rounded-full uppercase shadow-sm ${
+                                                status === 'active' ? 'bg-emerald-600 text-white' : 
+                                                status === 'scheduled' ? 'bg-blue-600 text-white' : 
+                                                status === 'draft' ? 'bg-slate-400 text-white' : 'bg-slate-700 text-white'
+                                            }`}>
+                                                {status === 'active' ? 'Probíhá' : status === 'scheduled' ? 'Připravuje se' : status === 'draft' ? 'Koncept' : 'Ukončeno'}
+                                            </span>
+                                        </div>
+
+                                        <h3 className="text-lg font-bold text-slate-900 mb-4">Žebříček příhozů (Kompletní data)</h3>
+                                        
+                                        <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                            <table className="w-full text-left text-sm text-slate-700">
+                                                <thead className="bg-slate-100 text-slate-700 uppercase text-[10px] font-bold">
+                                                    <tr>
+                                                        <th className="p-3">Pořadí</th>
+                                                        <th className="p-3">Jméno a příjmení</th>
+                                                        <th className="p-3">Telefonní číslo</th>
+                                                        <th className="p-3 text-right">Částka příhozu</th>
+                                                        <th className="p-3 text-right">Čas</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-200">
+                                                    {selectedAdminAuction.bids && selectedAdminAuction.bids.length > 0 ? (
+                                                        [...selectedAdminAuction.bids].sort((a,b) => b.amount - a.amount).map((b, idx) => {
+                                                            return (
+                                                                <tr key={b.id || idx} className={`hover:bg-slate-50 ${idx === 0 ? 'bg-emerald-50/50' : ''}`}>
+                                                                    <td className="p-3 font-bold text-slate-500">
+                                                                        {idx === 0 ? <span className="bg-emerald-600 text-white px-2 py-0.5 rounded-full text-xs">1. Místo</span> : `${idx + 1}.`}
+                                                                    </td>
+                                                                    <td className="p-3 font-bold text-slate-900">
+                                                                        {b.firstName} {b.lastName}
+                                                                    </td>
+                                                                    <td className="p-3 font-mono text-indigo-600 font-bold">
+                                                                        {b.phone}
+                                                                    </td>
+                                                                    <td className="p-3 text-right font-black text-emerald-600">
+                                                                        {b.amount.toLocaleString()} Kč
+                                                                    </td>
+                                                                    <td className="p-3 text-right text-xs text-slate-500">
+                                                                        {b.time}
+                                                                    </td>
+                                                                </tr>
+                                                            );
+                                                        })
+                                                    ) : (
+                                                        <tr>
+                                                            <td colSpan="5" className="p-6 text-center text-slate-400 text-sm">
+                                                                {status === 'draft' ? 'Koncept zatím není veřejný, příhozy nejsou možné.' : 'Zatím nebyly zaznamenány žádné příhozy.'}
+                                                            </td>
+                                                        </tr>
+                                                    )}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        })()}
+
+                    </main>
+
+                    {/* Pevná dolní lišta s modrým tlačítkem OK */}
+                    <div className={`fixed bottom-0 left-0 w-full z-50 transition-transform duration-300 ${footerVisible ? 'translate-y-0' : 'translate-y-full'}`}>
+                        <footer className="bg-white border-t border-slate-200 text-center py-4 px-4 text-xs text-slate-600 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] relative">
+                            <div className="max-w-xl mx-auto space-y-1">
+                                <p className="font-bold text-slate-700 text-sm">
+                                    Upozornění: Přes tento web neprobíhají žádné platby. Web slouží výhradně pro kontaktování zájemce s nejvyšším příhozem.
+                                </p>
+                                <p className="text-slate-600 font-semibold">
+                                    Aukce Duo kontaktní osoba <span className="text-slate-900 font-bold">Zvolánek Denis</span> <a href="tel:+420602330228" className="text-blue-600 hover:underline font-bold">+420 602 330 228</a>
+                                </p>
+                            </div>
+                            
+                            {/* Modré tlačítko OK pro schování lišty dolů */}
+                            <button 
+                                onClick={() => setFooterVisible(false)}
+                                className="mt-3 mx-auto block !bg-blue-600 hover:!bg-blue-700 !text-white font-bold text-xs px-5 py-2.5 rounded-xl transition shadow-md md:mt-0 md:mx-0 md:absolute md:right-4 md:top-1/2 md:-translate-y-1/2" style={{ backgroundColor: '#2563eb', color: '#ffffff' }}
+                            >
+                                OK
+                            </button>
+                        </footer>
+                    </div>
+
+                    {/* Malá šipka pro vyjetí lišty zpět */}
+                    {!footerVisible && (
+                        <button 
+                            onClick={() => setFooterVisible(true)}
+                            className="fixed bottom-2 right-4 z-50 bg-blue-600 hover:bg-blue-500 text-white p-2.5 rounded-full shadow-lg transition flex items-center justify-center"
+                            title="Zobrazit lištu"
+                        >
+                            <svg className="w-5 h-5 rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M19 9l-7 7-7-7" />
+                            </svg>
+                        </button>
+                    )}
+                </div>
+            );
+        }
+
+        ReactDOM.render(<App />, document.getElementById('root'));
+    </script>
+</body>
+</html>
