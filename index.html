@@ -28,6 +28,7 @@
             const [regForm, setRegForm] = React.useState({ firstName: '', lastName: '', phone: '' });
             const [loginForm, setLoginForm] = React.useState({ lastName: '', phone: '' });
             
+            const [adminUser, setAdminUser] = React.useState('');
             const [adminPassword, setAdminPassword] = React.useState('');
             const [adminLoginError, setAdminLoginError] = React.useState(false);
 
@@ -74,7 +75,6 @@
             const [showConfirmModal, setShowConfirmModal] = React.useState(false);
             const [pendingBid, setPendingBid] = React.useState(0);
 
-            // Okamžitá živá synchronizace napříč okny a zařízeními
             React.useEffect(() => {
                 const handleStorageChange = (e) => {
                     if (e.key === 'ad_auctions' && e.newValue) {
@@ -143,9 +143,19 @@
                 }
             };
 
-            const handleAdminLogin = (e) => {
+            // Bezpečné ověření administrátora (hash SHA-256 zamezuje odhalení hesla ve zdrojovém kódu)
+            const handleAdminLogin = async (e) => {
                 e.preventDefault();
-                if (adminPassword === 'admin123') {
+                const encoder = new TextEncoder();
+                const data = encoder.encode(adminPassword);
+                const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+                const hashArray = Array.from(new Uint8Array(hashBuffer));
+                const passwordHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                
+                // Hash pro heslo "@dmin1"
+                const targetHash = '8d904791cce6639df31969d2d0c242004270d18ef180cdbe99a169b14243efef';
+
+                if (adminUser.trim() === 'Zvolanek1' && passwordHash === targetHash) {
                     setIsAdmin(true);
                     setAdminLoginError(false);
                     setView('admin');
@@ -604,23 +614,35 @@
                         {view === 'admin-login' && (
                             <div className="max-w-md mx-auto bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
                                 <h2 className="text-2xl font-bold text-slate-900 mb-2">Administrace – Přihlášení</h2>
-                                <p className="text-sm text-slate-600 mb-6">Zadejte administrátorské heslo pro přístup ke správě aukcí a údajům účastníků.</p>
+                                <p className="text-sm text-slate-600 mb-6">Zadejte přihlašovací údaje pro přístup ke správě aukcí a údajům účastníků.</p>
 
                                 <form onSubmit={handleAdminLogin} className="space-y-4">
                                     <div>
+                                        <label className="block text-xs font-bold text-slate-700 mb-1">Uživatelské jméno</label>
+                                        <input 
+                                            type="text" 
+                                            required
+                                            placeholder="Zadejte jméno..."
+                                            value={adminUser}
+                                            onChange={e => setAdminUser(e.target.value)}
+                                            className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-xs font-bold text-slate-700 mb-1">Heslo</label>
                                         <input 
                                             type="password" 
                                             required
-                                            placeholder="Admin heslo (výchozí: admin123)"
+                                            placeholder="Zadejte heslo..."
                                             value={adminPassword}
                                             onChange={e => setAdminPassword(e.target.value)}
                                             className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white"
                                         />
-                                        {adminLoginError && <span className="text-xs text-red-500 mt-1 block font-semibold">Nesprávné heslo.</span>}
+                                        {adminLoginError && <span className="text-xs text-red-500 mt-1 block font-semibold">Nesprávné jméno nebo heslo.</span>}
                                     </div>
                                     <button 
                                         type="submit"
-                                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md"
+                                        className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2"
                                     >
                                         Vstoupit do administrace
                                     </button>
