@@ -56,6 +56,10 @@
             const [auctions, setAuctions] = React.useState([]);
             const [participants, setParticipants] = React.useState([]);
 
+            // State pro úpravu účastníka v adminu
+            const [editingPartId, setEditingPartId] = React.useState(null);
+            const [partEditForm, setPartEditForm] = React.useState({ firstName: '', lastName: '', phone: '' });
+
             const fetchData = async () => {
                 try {
                     const { data: aucData, error: aucErr } = await supabase.from('auctions').select('*');
@@ -85,7 +89,8 @@
                             id: p.id,
                             firstName: p.first_name || p.firstName || '',
                             lastName: p.last_name || p.lastName || '',
-                            phone: p.phone || ''
+                            phone: p.phone || '',
+                            blocked: p.blocked || false
                         }));
                         setParticipants(formattedParticipants);
                     }
@@ -178,7 +183,21 @@
                 if (!regForm.firstName || !regForm.lastName || !regForm.phone) {
                     alert('Prosím vyplňte všechna pole.'); return;
                 }
-                const newUser = { id: String(Date.now()), first_name: regForm.firstName.trim(), last_name: regForm.lastName.trim(), phone: regForm.phone.trim() };
+
+                // Kontrola duplicity telefonu
+                const existing = participants.find(p => p.phone.trim() === regForm.phone.trim());
+                if (existing) {
+                    alert('Účet s tímto telefonním číslem již v systému existuje!');
+                    return;
+                }
+
+                const newUser = { 
+                    id: String(Date.now()), 
+                    first_name: regForm.firstName.trim(), 
+                    last_name: regForm.lastName.trim(), 
+                    phone: regForm.phone.trim(),
+                    blocked: false
+                };
                 
                 await supabase.from('participants').insert([newUser]);
 
@@ -192,8 +211,18 @@
             const handleLoginExisting = (e) => {
                 e.preventDefault();
                 const found = participants.find(p => p.lastName.toLowerCase() === loginForm.lastName.trim().toLowerCase() && p.phone.trim() === loginForm.phone.trim());
-                if (found) { setIsAdmin(false); setUser(found); setView('home'); setShowAuthMenu(false); } 
-                else { alert('Účastník s tímto příjmením a telefonním číslem nebyl nalezen.'); }
+                if (found) { 
+                    if (found.blocked) {
+                        alert('Tento účet byl zablokován administrátorem. Přihlášení není možné.');
+                        return;
+                    }
+                    setIsAdmin(false); 
+                    setUser(found); 
+                    setView('home'); 
+                    setShowAuthMenu(false); 
+                } else { 
+                    alert('Účastník s tímto příjmením a telefonním číslem nebyl nalezen.'); 
+                }
             };
 
             const handleImageUpload = (e, isEdit = false) => {
@@ -287,6 +316,38 @@
                     await fetchData();
                     if (selectedAdminAuction && selectedAdminAuction.id === aucId) setSelectedAdminAuction(null);
                 }
+            };
+
+            // Akce pro správu účastníků
+            const handleDeleteParticipant = async (partId) => {
+                if (confirm('Opravdu chcete nenávratně smazat tohoto účastníka z databáze?')) {
+                    await supabase.from('participants').delete().eq('id', partId);
+                    await fetchData();
+                }
+            };
+
+            const handleToggleBlockParticipant = async (partId, currentBlockedStatus) => {
+                const { error } = await supabase.from('participants').update({ blocked: !currentBlockedStatus }).eq('id', partId);
+                if (error) {
+                    alert('Chyba při blokování. Máte v databázi Supabase vytvořený boolean sloupec "blocked"?');
+                }
+                await fetchData();
+            };
+
+            const handleSaveEditParticipant = async (e) => {
+                e.preventDefault();
+                const { error } = await supabase.from('participants').update({
+                    first_name: partEditForm.firstName,
+                    last_name: partEditForm.lastName,
+                    phone: partEditForm.phone
+                }).eq('id', editingPartId);
+
+                if (error) {
+                    alert('Chyba při úpravě účastníka: ' + error.message);
+                    return;
+                }
+                setEditingPartId(null);
+                await fetchData();
             };
 
             const getAuctionStatus = (auc) => {
@@ -406,45 +467,55 @@
                             {!isAdmin && !user ? (
                                 <div className="relative">
                                     <button
-                                        onClick={() => { setShowAuthMenu(!showAuthMenu); setShowAdminLoginBox(false); }}
+                                        onClick={() => setShowAuthMenu(true)}
                                         className="text-xs md:text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold px-3.5 py-2 rounded-xl transition shadow"
                                     >
                                         Přihlášení / Registrace
                                     </button>
-                                    {showAuthMenu && (
-                                        <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 z-50 text-left space-y-3">
-                                            <button onClick={() => { setView('register'); setShowAuthMenu(false); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2.5 rounded-xl shadow transition">
-                                                Registrace účastníka
-                                            </button>
-                                            
-                                            <form onSubmit={handleLoginExisting} className="space-y-2 border-t border-slate-100 pt-3">
-                                                <span className="text-xs font-bold text-slate-700 block">Již registrován:</span>
-                                                <input type="text" placeholder="Příjmení" value={loginForm.lastName} onChange={e => setLoginForm({...loginForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900" />
-                                                <input type="tel" placeholder="Telefonní číslo" value={loginForm.phone} onChange={e => setLoginForm({...loginForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900" />
-                                                <button type="submit" className="w-full bg-slate-900 text-white font-bold py-2 rounded-lg text-xs shadow">Přihlásit se</button>
-                                            </form>
-
-                                            <div className="mt-2 pt-2 border-t border-slate-100">
-                                                <button onClick={() => setShowAdminLoginBox(!showAdminLoginBox)} className="text-[11px] text-slate-500 hover:text-indigo-600 font-semibold">
-                                                    {showAdminLoginBox ? 'Skrýt admin přihlášení' : 'Přihlášení administrátora'}
-                                                </button>
-                                                {showAdminLoginBox && (
-                                                    <form onSubmit={handleAdminLogin} className="mt-2 space-y-2">
-                                                        <input type="text" placeholder="Uživatelské jméno" value={adminUser} onChange={e => setAdminUser(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs" />
-                                                        <input type="password" placeholder="Heslo" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-1.5 text-xs" />
-                                                        {adminLoginError && <span className="text-[10px] text-red-600 block">Nesprávné údaje.</span>}
-                                                        <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-1.5 rounded-lg text-xs shadow">Vstoupit jako Admin</button>
-                                                    </form>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
                                 </div>
                             ) : isAdmin ? (
                                 <button onClick={() => { setView('admin'); setSelectedAdminAuction(null); setSelectedAuctionId(null); setEditingAuctionId(null); }} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl font-bold transition shadow">Správa</button>
                             ) : null}
                         </div>
                     </header>
+
+                    {/* MODAL OKNO PRO PŘIHLÁŠENÍ A REGISTRACI */}
+                    {showAuthMenu && (
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[60]">
+                            <div className="bg-white rounded-2xl shadow-2xl p-6 md:p-8 w-full max-w-sm relative animate-in fade-in zoom-in-95 duration-200">
+                                <button onClick={() => setShowAuthMenu(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-800 font-bold text-xl leading-none">✕</button>
+                                
+                                <h3 className="text-xl font-black text-slate-900 mb-5">Přihlášení / Registrace</h3>
+                                
+                                <button onClick={() => { setView('register'); setShowAuthMenu(false); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-3.5 rounded-xl shadow-md transition transform active:scale-95 mb-5">
+                                    ＋ Nová registrace účastníka
+                                </button>
+                                
+                                <div className="border-t border-slate-200 pt-5">
+                                    <span className="text-sm font-bold text-slate-700 block mb-3">Již mám založený účet:</span>
+                                    <form onSubmit={handleLoginExisting} className="space-y-3">
+                                        <input type="text" required placeholder="Příjmení" value={loginForm.lastName} onChange={e => setLoginForm({...loginForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500" />
+                                        <input type="tel" required placeholder="Telefonní číslo" value={loginForm.phone} onChange={e => setLoginForm({...loginForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm text-slate-900 focus:outline-none focus:border-blue-500" />
+                                        <button type="submit" className="w-full bg-slate-900 hover:bg-slate-800 text-white font-bold py-3.5 rounded-xl text-sm shadow transition transform active:scale-95">Přihlásit se do aukce</button>
+                                    </form>
+                                </div>
+
+                                <div className="mt-6 pt-5 border-t border-slate-200 text-center">
+                                    <button onClick={() => setShowAdminLoginBox(!showAdminLoginBox)} className="text-xs text-slate-500 hover:text-indigo-600 font-semibold uppercase tracking-wider">
+                                        {showAdminLoginBox ? 'Skrýt admin přihlášení' : 'Přihlášení administrátora'}
+                                    </button>
+                                    {showAdminLoginBox && (
+                                        <form onSubmit={handleAdminLogin} className="mt-4 space-y-3 text-left">
+                                            <input type="text" required placeholder="Uživatelské jméno" value={adminUser} onChange={e => setAdminUser(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500" />
+                                            <input type="password" required placeholder="Heslo" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-indigo-500" />
+                                            {adminLoginError && <span className="text-[11px] text-red-600 font-bold block">Nesprávné přihlašovací údaje.</span>}
+                                            <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl text-sm shadow transition">Vstoupit jako Admin</button>
+                                        </form>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     <main className="flex-1 max-w-4xl w-full mx-auto p-4 md:p-6">
                         {view === 'home' && !selectedAuctionId && (
@@ -522,7 +593,7 @@
                                                                     setSelectedAuctionId(auc.id);
                                                                     setView('auction');
                                                                 } else if (!user) {
-                                                                    setView('register');
+                                                                    setShowAuthMenu(true);
                                                                 } else {
                                                                     setSelectedAuctionId(auc.id);
                                                                     setView('auction');
@@ -552,15 +623,15 @@
                                     <form onSubmit={handleRegister} className="space-y-4">
                                         <div>
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Křestní jméno</label>
-                                            <input type="text" required value={regForm.firstName} onChange={e => setRegForm({...regForm, firstName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm" placeholder="např. Jan" />
+                                            <input type="text" required value={regForm.firstName} onChange={e => setRegForm({...regForm, firstName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-500" placeholder="např. Jan" />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Příjmení</label>
-                                            <input type="text" required value={regForm.lastName} onChange={e => setRegForm({...regForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm" placeholder="např. Novák" />
+                                            <input type="text" required value={regForm.lastName} onChange={e => setRegForm({...regForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-500" placeholder="např. Novák" />
                                         </div>
                                         <div>
                                             <label className="block text-xs font-bold text-slate-700 mb-1">Telefonní číslo</label>
-                                            <input type="tel" required value={regForm.phone} onChange={e => setRegForm({...regForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm" placeholder="+420 123 456 789" />
+                                            <input type="tel" required value={regForm.phone} onChange={e => setRegForm({...regForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-500" placeholder="+420 123 456 789" />
                                         </div>
                                         <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2">Dokončit registraci a vstoupit</button>
                                     </form>
@@ -929,13 +1000,42 @@
                                                 <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
                                                     <ul className="divide-y divide-slate-100">
                                                         {participants.map(p => (
-                                                            <li key={p.id} className="p-4 flex flex-col md:flex-row justify-between md:items-center hover:bg-slate-50 transition gap-2">
-                                                                <div>
-                                                                    <strong className="text-slate-900">{p.firstName} {p.lastName}</strong>
-                                                                </div>
-                                                                <div className="text-blue-600 font-mono text-sm font-bold bg-blue-50 border border-blue-100 px-3 py-1 rounded-lg w-fit">
-                                                                    {p.phone}
-                                                                </div>
+                                                            <li key={p.id} className="p-4 flex flex-col md:flex-row justify-between md:items-center hover:bg-slate-50 transition gap-3">
+                                                                {editingPartId === p.id ? (
+                                                                    <form onSubmit={handleSaveEditParticipant} className="flex flex-wrap gap-2 w-full items-center">
+                                                                        <input required type="text" value={partEditForm.firstName} onChange={e => setPartEditForm({...partEditForm, firstName: e.target.value})} className="border px-2 py-1.5 text-xs rounded-lg w-24" placeholder="Jméno"/>
+                                                                        <input required type="text" value={partEditForm.lastName} onChange={e => setPartEditForm({...partEditForm, lastName: e.target.value})} className="border px-2 py-1.5 text-xs rounded-lg w-28" placeholder="Příjmení"/>
+                                                                        <input required type="tel" value={partEditForm.phone} onChange={e => setPartEditForm({...partEditForm, phone: e.target.value})} className="border px-2 py-1.5 text-xs rounded-lg w-32" placeholder="Telefon"/>
+                                                                        <button type="submit" className="bg-emerald-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow">Uložit</button>
+                                                                        <button type="button" onClick={() => setEditingPartId(null)} className="bg-slate-200 px-3 py-1.5 rounded-lg text-xs font-bold">Zrušit</button>
+                                                                    </form>
+                                                                ) : (
+                                                                    <>
+                                                                        <div className="flex items-center gap-3">
+                                                                            <div>
+                                                                                <strong className="text-slate-900 block">{p.firstName} {p.lastName}</strong>
+                                                                                <div className="text-blue-600 font-mono text-xs font-bold mt-0.5">
+                                                                                    {p.phone}
+                                                                                </div>
+                                                                            </div>
+                                                                            {p.blocked && (
+                                                                                <span className="bg-red-100 text-red-800 text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wide border border-red-200">Zablokován</span>
+                                                                            )}
+                                                                        </div>
+                                                                        <div className="flex gap-2 flex-wrap">
+                                                                            <button onClick={() => {
+                                                                                setEditingPartId(p.id);
+                                                                                setPartEditForm({ firstName: p.firstName, lastName: p.lastName, phone: p.phone });
+                                                                            }} className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-2 rounded-xl font-bold transition">Upravit</button>
+                                                                            
+                                                                            <button onClick={() => handleToggleBlockParticipant(p.id, p.blocked)} className={`text-xs px-3 py-2 rounded-xl font-bold transition ${p.blocked ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800' : 'bg-orange-100 hover:bg-orange-200 text-orange-800'}`}>
+                                                                                {p.blocked ? 'Odblokovat' : 'Blokovat'}
+                                                                            </button>
+                                                                            
+                                                                            <button onClick={() => handleDeleteParticipant(p.id)} className="text-xs bg-red-100 hover:bg-red-200 text-red-800 px-3 py-2 rounded-xl font-bold transition">Smazat</button>
+                                                                        </div>
+                                                                    </>
+                                                                )}
                                                             </li>
                                                         ))}
                                                     </ul>
@@ -949,7 +1049,7 @@
                     </main>
 
                     {showAllBidsModal && currentAuction && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-white p-5 rounded-2xl max-w-sm w-full space-y-4 shadow-2xl max-h-[80vh] flex flex-col">
                                 <div className="flex justify-between items-center border-b pb-2">
                                     <h3 className="font-bold text-slate-900 text-sm">Všechny příhozy ({currentAuction.bids.length})</h3>
@@ -957,7 +1057,7 @@
                                 </div>
                                 <div className="space-y-2 overflow-y-auto flex-1 pr-1">
                                     {currentAuction.bids.map((b, i) => (
-                                        <div key={i} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl text-xs border">
+                                        <div key={i} className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl text-xs border border-slate-100">
                                             <div className="flex flex-col gap-0.5">
                                                 <span className="font-bold text-slate-900">
                                                     {b.firstName}
@@ -973,7 +1073,7 @@
                         </div>
                     )}
 
-                    <div className={`fixed bottom-0 left-0 right-0 z-50 transition-transform duration-300 ${footerVisible ? 'translate-y-0' : 'translate-y-full'}`}>
+                    <div className={`fixed bottom-0 left-0 right-0 z-40 transition-transform duration-300 ${footerVisible ? 'translate-y-0' : 'translate-y-full'}`}>
                         <footer className="bg-white/95 backdrop-blur border-t border-slate-200 py-3 px-4 text-xs text-slate-600 shadow-[0_-4px_12px_rgba(0,0,0,0.08)]">
                             <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center justify-between gap-2">
                                 <div className="text-center md:text-left space-y-0.5">
@@ -996,8 +1096,8 @@
                     </div>
 
                     {showConfirmModal && (
-                        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-                            <div className="bg-white p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl">
+                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                            <div className="bg-white p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
                                 <h3 className="font-bold text-slate-900 text-lg mb-1">
                                     Potvrdit navýšení o {(pendingBid - currentHighestPrice).toLocaleString()} Kč?
                                 </h3>
@@ -1005,8 +1105,8 @@
                                     Nová celková cena bude: <strong className="text-emerald-600 text-sm ml-1">{pendingBid.toLocaleString()} Kč</strong>
                                 </p>
                                 <div className="flex gap-2">
-                                    <button onClick={() => setShowConfirmModal(false)} className="flex-1 bg-slate-200 py-2.5 rounded-xl font-bold text-xs">Zrušit</button>
-                                    <button onClick={confirmBid} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold text-xs shadow">Potvrdit příhoz</button>
+                                    <button onClick={() => setShowConfirmModal(false)} className="flex-1 bg-slate-200 hover:bg-slate-300 py-2.5 rounded-xl font-bold text-xs transition">Zrušit</button>
+                                    <button onClick={confirmBid} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold text-xs shadow transition">Potvrdit příhoz</button>
                                 </div>
                             </div>
                         </div>
