@@ -42,7 +42,6 @@
                         description: 'Špičková sada určená pro náročné hudebníky a orchestry. Perfektní rezonance, prémiové zpracování a zaručená dlouhá životnost.',
                         imageUrl: 'https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?auto=format&fit=crop&w=800&q=80',
                         startPrice: 15000,
-                        minBid: 500,
                         endTime: new Date(Date.now() + 3600 * 1000 * 2).toISOString(),
                         status: 'active',
                         bids: [
@@ -67,7 +66,6 @@
                 description: '',
                 imageUrl: '',
                 startPrice: 1000,
-                minBid: 100,
                 durationMinutes: 60
             });
 
@@ -166,7 +164,6 @@
                     description: newAuction.description,
                     imageUrl: newAuction.imageUrl || 'https://images.unsplash.com/photo-1519892300165-cb5542fb47c7?auto=format&fit=crop&w=800&q=80',
                     startPrice: Number(newAuction.startPrice),
-                    minBid: Number(newAuction.minBid),
                     endTime: endDate,
                     status: 'active',
                     bids: []
@@ -174,7 +171,7 @@
                 const updatedAuctions = [created, ...auctions];
                 setAuctions(updatedAuctions);
                 localStorage.setItem('ad_auctions', JSON.stringify(updatedAuctions));
-                setNewAuction({ title: '', productName: '', description: '', imageUrl: '', startPrice: 1000, minBid: 100, durationMinutes: 60 });
+                setNewAuction({ title: '', productName: '', description: '', imageUrl: '', startPrice: 1000, durationMinutes: 60 });
                 alert('Aukce byla úspěšně vytvořena a spuštěna!');
             };
 
@@ -527,7 +524,7 @@
                                                     <div className="flex gap-2 pt-1">
                                                         <input 
                                                             type="number"
-                                                            placeholder="Vlastní částka celkem..."
+                                                            placeholder="Zadejte libovolnou částku..."
                                                             value={customBidInput}
                                                             onChange={e => setCustomBidInput(e.target.value)}
                                                             className="flex-1 bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white"
@@ -535,11 +532,11 @@
                                                         <button 
                                                             onClick={() => {
                                                                 const val = Number(customBidInput);
-                                                                const minAllowed = getCurrentHighest(currentAuction) + currentAuction.minBid;
-                                                                if (val >= minAllowed) {
+                                                                const currentHigh = getCurrentHighest(currentAuction);
+                                                                if (val > currentHigh) {
                                                                     handlePlaceBidSubmit(val);
                                                                 } else {
-                                                                    alert(`Minimální platná nabídka musí být alespoň ${minAllowed.toLocaleString()} Kč`);
+                                                                    alert(`Nová nabídka musí být vyšší než aktuální cena (${currentHigh.toLocaleString()} Kč).`);
                                                                 }
                                                             }}
                                                             className="bg-blue-600 hover:bg-blue-500 text-white font-bold px-5 py-2.5 rounded-xl text-sm transition shadow"
@@ -692,25 +689,15 @@
                                                 placeholder="https://example.com/image.jpg"
                                             />
                                         </div>
-                                        <div className="grid grid-cols-2 gap-2">
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-700 mb-1">Startovací cena (Kč)</label>
-                                                <input 
-                                                    type="number" required
-                                                    value={newAuction.startPrice}
-                                                    onChange={e => setNewAuction({...newAuction, startPrice: e.target.value})}
-                                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:bg-white"
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-slate-700 mb-1">Min. příhoz (Kč)</label>
-                                                <input 
-                                                    type="number" required
-                                                    value={newAuction.minBid}
-                                                    onChange={e => setNewAuction({...newAuction, minBid: e.target.value})}
-                                                    className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:bg-white"
-                                                />
-                                            </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Počáteční cena (Kč)</label>
+                                            <input 
+                                                type="number" required
+                                                value={newAuction.startPrice}
+                                                onChange={e => setNewAuction({...newAuction, startPrice: e.target.value})}
+                                                className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-slate-900 text-sm focus:bg-white"
+                                                placeholder="např. 5000"
+                                            />
                                         </div>
                                         <div className="md:col-span-2 pt-2">
                                             <button 
