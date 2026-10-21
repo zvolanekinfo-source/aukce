@@ -253,7 +253,6 @@
                 setSelectedAdminAuction(null);
             };
 
-            // FUNKCE PRO ULOŽENÍ UPRAVENÉ AUKCE
             const handleSaveEditAuction = async (e) => {
                 e.preventDefault();
                 const startStr = `${editForm.startDate}T${editForm.startTime}`;
@@ -365,6 +364,13 @@
                 setBidAmountInput(e.target.value);
             };
 
+            // Dynamický výpočet maxima pro slider
+            const numericBidInput = Number(bidAmountInput) || (currentAuction?.minBidStep || 100);
+            let dynamicSliderMax = 20000;
+            while (dynamicSliderMax <= numericBidInput) {
+                dynamicSliderMax += 20000;
+            }
+
             const IAukceLogo = () => (
                 <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => { setView('home'); setSelectedAuctionId(null); setSelectedAdminAuction(null); setEditingAuctionId(null); }}>
                     <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md flex items-end justify-center gap-1 w-9 h-9">
@@ -435,7 +441,7 @@
                                     )}
                                 </div>
                             ) : isAdmin ? (
-                                <button onClick={() => { setView('admin'); setSelectedAdminAuction(null); setSelectedAuctionId(null); setEditingAuctionId(null); }} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl font-bold transition shadow">Správa aukcí</button>
+                                <button onClick={() => { setView('admin'); setSelectedAdminAuction(null); setSelectedAuctionId(null); setEditingAuctionId(null); }} className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl font-bold transition shadow">Správa</button>
                             ) : null}
                         </div>
                     </header>
@@ -513,7 +519,6 @@
                                                         <button 
                                                             onClick={() => {
                                                                 if (isAdmin) {
-                                                                    // Admin se dostane rovnou do sledování detailu
                                                                     setSelectedAuctionId(auc.id);
                                                                     setView('auction');
                                                                 } else if (!user) {
@@ -564,11 +569,11 @@
                             </div>
                         )}
 
-                        {/* DETAIL AUKCE (PRO UŽIVATELE I ADMINA VE SLEDOVACÍM REŽIMU) */}
+                        {/* DETAIL AUKCE */}
                         {view === 'auction' && currentAuction && (
                             <div className="bg-white rounded-2xl p-4 md:p-6 shadow-xl border border-slate-200 space-y-4">
                                 <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-2 border-b pb-2">
-                                    <button onClick={() => { setSelectedAuctionId(null); setView(isAdmin ? 'admin' : 'home'); }} className="text-blue-600 font-bold text-xs">← Zpět na {isAdmin ? 'Správu aukcí' : 'aukce'}</button>
+                                    <button onClick={() => { setSelectedAuctionId(null); setView(isAdmin ? 'admin' : 'home'); }} className="text-blue-600 font-bold text-xs">← Zpět na {isAdmin ? 'Správu' : 'aukce'}</button>
                                     
                                     <div className="flex flex-wrap items-center gap-2">
                                         <span className="text-[11px] bg-blue-50 border border-blue-100 text-blue-800 font-bold px-3 py-1 rounded-full flex items-center gap-1">
@@ -620,7 +625,6 @@
                                     </div>
                                 </div>
 
-                                {/* BLOK: ZOBRAZENÍ VÝSLEDKU NEBO FORMULÁŘ PRO PŘÍHOZ */}
                                 {isEnded ? (
                                     <div className="space-y-3 p-2 text-center">
                                         {isUserWinning(currentAuction) ? (
@@ -647,7 +651,7 @@
                                                         value={bidAmountInput} 
                                                         onChange={e => setBidAmountInput(e.target.value)} 
                                                         placeholder={`Min. ${currentAuction.minBidStep || 100}`}
-                                                        className="w-full bg-white border-2 border-blue-600 rounded-xl px-4 py-2 text-center text-xl font-black text-blue-600 shadow-sm" 
+                                                        className="w-full bg-white border-2 border-slate-300 focus:border-emerald-500 focus:outline-none rounded-xl px-4 py-2 text-center text-xl font-black text-emerald-600 shadow-sm transition-colors" 
                                                     />
                                                 </div>
 
@@ -655,15 +659,14 @@
                                                     <input 
                                                         type="range" 
                                                         min={currentAuction.minBidStep || 100} 
-                                                        max={100000} 
+                                                        max={dynamicSliderMax} 
                                                         step={currentAuction.minBidStep || 100}
                                                         value={Number(bidAmountInput) || (currentAuction.minBidStep || 100)} 
                                                         onChange={handleSliderChange}
-                                                        className="w-full h-4 bg-slate-300 rounded-full appearance-none cursor-pointer outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-8 [&::-webkit-slider-thumb]:h-8 [&::-webkit-slider-thumb]:bg-blue-600 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:w-8 [&::-moz-range-thumb]:h-8 [&::-moz-range-thumb]:bg-blue-600 [&::-moz-range-thumb]:border-none [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:shadow-md"
+                                                        className="w-full h-4 bg-slate-300 rounded-full appearance-none cursor-pointer outline-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-8 [&::-webkit-slider-thumb]:h-8 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border [&::-webkit-slider-thumb]:border-slate-300 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-md [&::-moz-range-thumb]:w-8 [&::-moz-range-thumb]:h-8 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border [&::-moz-range-thumb]:border-slate-300 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:shadow-md"
                                                     />
-                                                    <div className="flex justify-between text-[10px] text-slate-400 mt-2 font-semibold">
+                                                    <div className="flex justify-start text-[10px] text-slate-400 mt-2 font-semibold">
                                                         <span>Min: {(currentAuction.minBidStep || 100).toLocaleString()} Kč</span>
-                                                        <span>Max +100 000 Kč</span>
                                                     </div>
                                                 </div>
 
@@ -687,7 +690,7 @@
                                         {isAdmin && (
                                             <div className="bg-indigo-50 border border-indigo-200 p-4 rounded-xl text-center max-w-md mx-auto">
                                                 <h3 className="text-indigo-800 font-bold uppercase text-xs tracking-wider">Admin Režim: Sledování Živě</h3>
-                                                <p className="text-xs text-indigo-600 mt-1">Data a příhozy se obnovují automaticky. Pro úpravu parametrů aukce přejděte zpět do Správy aukcí.</p>
+                                                <p className="text-xs text-indigo-600 mt-1">Data a příhozy se obnovují automaticky. Pro úpravu parametrů aukce přejděte zpět do Správy.</p>
                                             </div>
                                         )}
                                     </>
@@ -726,184 +729,216 @@
                             </div>
                         )}
 
-                        {/* ADMIN REŽIM - SPRÁVA AUKCÍ */}
+                        {/* ADMIN REŽIM - SPRÁVA */}
                         {view === 'admin' && isAdmin && (
-                            <div className="space-y-6">
-                                {editingAuctionId ? (
-                                    <div className="bg-white p-6 rounded-2xl shadow space-y-4 border border-slate-200">
-                                        <div className="flex justify-between items-center border-b pb-3">
-                                            <h2 className="text-lg font-bold">Úprava aukce</h2>
-                                            <button onClick={() => setEditingAuctionId(null)} className="text-xs text-slate-500 font-bold">✕ Zrušit a zpět</button>
-                                        </div>
-                                        <form onSubmit={handleSaveEditAuction} className="space-y-3 text-xs">
-                                            <div>
-                                                <label className="block font-bold mb-1">Nadpis / Štítek</label>
-                                                <input type="text" value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})} className="w-full border p-2.5 rounded-xl" />
+                            <div className="space-y-10">
+                                {/* SEKCE 1: AUKCE */}
+                                <div className="space-y-6">
+                                    {editingAuctionId ? (
+                                        <div className="bg-white p-6 rounded-2xl shadow space-y-4 border border-slate-200">
+                                            <div className="flex justify-between items-center border-b pb-3">
+                                                <h2 className="text-lg font-bold">Úprava aukce</h2>
+                                                <button onClick={() => setEditingAuctionId(null)} className="text-xs text-slate-500 font-bold">✕ Zrušit a zpět</button>
                                             </div>
-                                            <div>
-                                                <label className="block font-bold mb-1">Název produktu</label>
-                                                <input type="text" value={editForm.productName} onChange={e => setEditForm({...editForm, productName: e.target.value})} className="w-full border p-2.5 rounded-xl" required />
-                                            </div>
-                                            <div>
-                                                <label className="block font-bold mb-1">Popis</label>
-                                                <textarea value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} className="w-full border p-2.5 rounded-xl" rows="3" />
-                                            </div>
-                                            <div>
-                                                <label className="block font-bold mb-1">Nová Fotografie (volitelné)</label>
-                                                <input type="file" accept="image/*" onChange={e => handleImageUpload(e, true)} className="w-full" />
-                                            </div>
+                                            <form onSubmit={handleSaveEditAuction} className="space-y-3 text-xs">
+                                                <div>
+                                                    <label className="block font-bold mb-1">Nadpis / Štítek</label>
+                                                    <input type="text" value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})} className="w-full border p-2.5 rounded-xl" />
+                                                </div>
+                                                <div>
+                                                    <label className="block font-bold mb-1">Název produktu</label>
+                                                    <input type="text" value={editForm.productName} onChange={e => setEditForm({...editForm, productName: e.target.value})} className="w-full border p-2.5 rounded-xl" required />
+                                                </div>
+                                                <div>
+                                                    <label className="block font-bold mb-1">Popis</label>
+                                                    <textarea value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} className="w-full border p-2.5 rounded-xl" rows="3" />
+                                                </div>
+                                                <div>
+                                                    <label className="block font-bold mb-1">Nová Fotografie (volitelné)</label>
+                                                    <input type="file" accept="image/*" onChange={e => handleImageUpload(e, true)} className="w-full" />
+                                                </div>
 
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label className="block font-bold mb-1">Vyvolávací cena (Kč)</label>
-                                                    <input type="number" value={editForm.startPrice} onChange={e => setEditForm({...editForm, startPrice: e.target.value})} className="w-full border p-2.5 rounded-xl" />
-                                                </div>
-                                                <div>
-                                                    <label className="block font-bold mb-1">Min. krok příhozu (Kč)</label>
-                                                    <input type="number" value={editForm.minBidStep} onChange={e => setEditForm({...editForm, minBidStep: e.target.value})} className="w-full border p-2.5 rounded-xl" />
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <label className="block font-bold mb-1">Automatické prodloužení konce (v minutách)</label>
-                                                <input type="number" value={editForm.autoExtendMinutes} onChange={e => setEditForm({...editForm, autoExtendMinutes: e.target.value})} className="w-full border p-2.5 rounded-xl" />
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label className="block font-bold mb-1">Začátek datum</label>
-                                                    <input type="date" value={editForm.startDate} onChange={e => setEditForm({...editForm, startDate: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
-                                                </div>
-                                                <div>
-                                                    <label className="block font-bold mb-1">Začátek čas</label>
-                                                    <input type="time" value={editForm.startTime} onChange={e => setEditForm({...editForm, startTime: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label className="block font-bold mb-1">Konec datum</label>
-                                                    <input type="date" value={editForm.endDate} onChange={e => setEditForm({...editForm, endDate: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
-                                                </div>
-                                                <div>
-                                                    <label className="block font-bold mb-1">Konec čas</label>
-                                                    <input type="time" value={editForm.endTime} onChange={e => setEditForm({...editForm, endTime: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
-                                                </div>
-                                            </div>
-                                            <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow text-sm">Uložit úpravy</button>
-                                        </form>
-                                    </div>
-                                ) : selectedAdminAuction === 'new' ? (
-                                    <div className="bg-white p-6 rounded-2xl shadow space-y-4 border border-slate-200">
-                                        <div className="flex justify-between items-center border-b pb-3">
-                                            <h2 className="text-lg font-bold">Nová aukce</h2>
-                                            <button onClick={() => setSelectedAdminAuction(null)} className="text-xs text-slate-500 font-bold">✕ Zrušit</button>
-                                        </div>
-                                        <form onSubmit={handleCreateAuction} className="space-y-3 text-xs">
-                                            <div>
-                                                <label className="block font-bold mb-1">Nadpis / Štítek</label>
-                                                <input type="text" placeholder="např. iPhone Aukce" value={newAuction.title} onChange={e => setNewAuction({...newAuction, title: e.target.value})} className="w-full border p-2.5 rounded-xl" />
-                                            </div>
-                                            <div>
-                                                <label className="block font-bold mb-1">Název produktu</label>
-                                                <input type="text" placeholder="např. iPhone 16 Pro" value={newAuction.productName} onChange={e => setNewAuction({...newAuction, productName: e.target.value})} className="w-full border p-2.5 rounded-xl" required />
-                                            </div>
-                                            <div>
-                                                <label className="block font-bold mb-1">Popis</label>
-                                                <textarea placeholder="Popis..." value={newAuction.description} onChange={e => setNewAuction({...newAuction, description: e.target.value})} className="w-full border p-2.5 rounded-xl" rows="3" />
-                                            </div>
-                                            <div>
-                                                <label className="block font-bold mb-1">Fotografie</label>
-                                                <input type="file" accept="image/*" onChange={e => handleImageUpload(e, false)} className="w-full" />
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label className="block font-bold mb-1">Vyvolávací cena (Kč)</label>
-                                                    <input type="number" value={newAuction.startPrice} onChange={e => setNewAuction({...newAuction, startPrice: e.target.value})} className="w-full border p-2.5 rounded-xl" />
-                                                </div>
-                                                <div>
-                                                    <label className="block font-bold mb-1">Min. krok příhozu (Kč)</label>
-                                                    <input type="number" value={newAuction.minBidStep} onChange={e => setNewAuction({...newAuction, minBidStep: e.target.value})} className="w-full border p-2.5 rounded-xl" />
-                                                </div>
-                                            </div>
-
-                                            <div>
-                                                <label className="block font-bold mb-1">Automatické prodloužení konce (v minutách)</label>
-                                                <input type="number" value={newAuction.autoExtendMinutes} onChange={e => setNewAuction({...newAuction, autoExtendMinutes: e.target.value})} className="w-full border p-2.5 rounded-xl" />
-                                            </div>
-
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label className="block font-bold mb-1">Začátek datum</label>
-                                                    <input type="date" value={newAuction.startDate} onChange={e => setNewAuction({...newAuction, startDate: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
-                                                </div>
-                                                <div>
-                                                    <label className="block font-bold mb-1">Začátek čas</label>
-                                                    <input type="time" value={newAuction.startTime} onChange={e => setNewAuction({...newAuction, startTime: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-2">
-                                                <div>
-                                                    <label className="block font-bold mb-1">Konec datum</label>
-                                                    <input type="date" value={newAuction.endDate} onChange={e => setNewAuction({...newAuction, endDate: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
-                                                </div>
-                                                <div>
-                                                    <label className="block font-bold mb-1">Konec čas</label>
-                                                    <input type="time" value={newAuction.endTime} onChange={e => setNewAuction({...newAuction, endTime: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
-                                                </div>
-                                            </div>
-                                            <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow text-sm">Vytvořit a publikovat ihned</button>
-                                        </form>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-6">
-                                        <div className="flex justify-between items-center">
-                                            <h1 className="text-xl font-black">Správa všech aukcí</h1>
-                                            <button onClick={() => setSelectedAdminAuction('new')} className="bg-blue-600 hover:bg-blue-700 transition text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow">＋ Vytvořit novou aukci</button>
-                                        </div>
-
-                                        <div className="space-y-3">
-                                            {auctions.map(auc => (
-                                                <div key={auc.id} className="bg-white border rounded-2xl p-4 flex flex-col md:flex-row justify-between md:items-center shadow-sm gap-4">
+                                                <div className="grid grid-cols-2 gap-2">
                                                     <div>
-                                                        <h3 className="font-bold text-slate-900 text-base">{auc.productName}</h3>
-                                                        <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 mt-1">
-                                                            <span>Aktuálně: <strong className="text-emerald-600">{getCurrentHighest(auc).toLocaleString()} Kč</strong></span>
-                                                            <span className={getAuctionStatus(auc) === 'active' ? 'text-emerald-500 font-bold' : ''}>Status: {getAuctionStatus(auc) === 'active' ? 'Probíhá' : getAuctionStatus(auc) === 'scheduled' ? 'Připravuje se' : 'Skončila'}</span>
+                                                        <label className="block font-bold mb-1">Vyvolávací cena (Kč)</label>
+                                                        <input type="number" value={editForm.startPrice} onChange={e => setEditForm({...editForm, startPrice: e.target.value})} className="w-full border p-2.5 rounded-xl" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Min. krok příhozu (Kč)</label>
+                                                        <input type="number" value={editForm.minBidStep} onChange={e => setEditForm({...editForm, minBidStep: e.target.value})} className="w-full border p-2.5 rounded-xl" />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block font-bold mb-1">Automatické prodloužení konce (v minutách)</label>
+                                                    <input type="number" value={editForm.autoExtendMinutes} onChange={e => setEditForm({...editForm, autoExtendMinutes: e.target.value})} className="w-full border p-2.5 rounded-xl" />
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Začátek datum</label>
+                                                        <input type="date" value={editForm.startDate} onChange={e => setEditForm({...editForm, startDate: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Začátek čas</label>
+                                                        <input type="time" value={editForm.startTime} onChange={e => setEditForm({...editForm, startTime: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Konec datum</label>
+                                                        <input type="date" value={editForm.endDate} onChange={e => setEditForm({...editForm, endDate: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Konec čas</label>
+                                                        <input type="time" value={editForm.endTime} onChange={e => setEditForm({...editForm, endTime: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
+                                                    </div>
+                                                </div>
+                                                <button type="submit" className="w-full bg-emerald-600 text-white font-bold py-3 rounded-xl shadow text-sm">Uložit úpravy</button>
+                                            </form>
+                                        </div>
+                                    ) : selectedAdminAuction === 'new' ? (
+                                        <div className="bg-white p-6 rounded-2xl shadow space-y-4 border border-slate-200">
+                                            <div className="flex justify-between items-center border-b pb-3">
+                                                <h2 className="text-lg font-bold">Nová aukce</h2>
+                                                <button onClick={() => setSelectedAdminAuction(null)} className="text-xs text-slate-500 font-bold">✕ Zrušit</button>
+                                            </div>
+                                            <form onSubmit={handleCreateAuction} className="space-y-3 text-xs">
+                                                <div>
+                                                    <label className="block font-bold mb-1">Nadpis / Štítek</label>
+                                                    <input type="text" placeholder="např. iPhone Aukce" value={newAuction.title} onChange={e => setNewAuction({...newAuction, title: e.target.value})} className="w-full border p-2.5 rounded-xl" />
+                                                </div>
+                                                <div>
+                                                    <label className="block font-bold mb-1">Název produktu</label>
+                                                    <input type="text" placeholder="např. iPhone 16 Pro" value={newAuction.productName} onChange={e => setNewAuction({...newAuction, productName: e.target.value})} className="w-full border p-2.5 rounded-xl" required />
+                                                </div>
+                                                <div>
+                                                    <label className="block font-bold mb-1">Popis</label>
+                                                    <textarea placeholder="Popis..." value={newAuction.description} onChange={e => setNewAuction({...newAuction, description: e.target.value})} className="w-full border p-2.5 rounded-xl" rows="3" />
+                                                </div>
+                                                <div>
+                                                    <label className="block font-bold mb-1">Fotografie</label>
+                                                    <input type="file" accept="image/*" onChange={e => handleImageUpload(e, false)} className="w-full" />
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Vyvolávací cena (Kč)</label>
+                                                        <input type="number" value={newAuction.startPrice} onChange={e => setNewAuction({...newAuction, startPrice: e.target.value})} className="w-full border p-2.5 rounded-xl" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Min. krok příhozu (Kč)</label>
+                                                        <input type="number" value={newAuction.minBidStep} onChange={e => setNewAuction({...newAuction, minBidStep: e.target.value})} className="w-full border p-2.5 rounded-xl" />
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block font-bold mb-1">Automatické prodloužení konce (v minutách)</label>
+                                                    <input type="number" value={newAuction.autoExtendMinutes} onChange={e => setNewAuction({...newAuction, autoExtendMinutes: e.target.value})} className="w-full border p-2.5 rounded-xl" />
+                                                </div>
+
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Začátek datum</label>
+                                                        <input type="date" value={newAuction.startDate} onChange={e => setNewAuction({...newAuction, startDate: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Začátek čas</label>
+                                                        <input type="time" value={newAuction.startTime} onChange={e => setNewAuction({...newAuction, startTime: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Konec datum</label>
+                                                        <input type="date" value={newAuction.endDate} onChange={e => setNewAuction({...newAuction, endDate: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block font-bold mb-1">Konec čas</label>
+                                                        <input type="time" value={newAuction.endTime} onChange={e => setNewAuction({...newAuction, endTime: e.target.value})} className="w-full border p-2.5 rounded-xl text-sm" />
+                                                    </div>
+                                                </div>
+                                                <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl shadow text-sm">Vytvořit a publikovat ihned</button>
+                                            </form>
+                                        </div>
+                                    ) : (
+                                        <div className="space-y-6">
+                                            <div className="flex justify-between items-center">
+                                                <h1 className="text-xl font-black">Správa všech aukcí</h1>
+                                                <button onClick={() => setSelectedAdminAuction('new')} className="bg-blue-600 hover:bg-blue-700 transition text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow">＋ Vytvořit novou aukci</button>
+                                            </div>
+
+                                            <div className="space-y-3">
+                                                {auctions.map(auc => (
+                                                    <div key={auc.id} className="bg-white border rounded-2xl p-4 flex flex-col md:flex-row justify-between md:items-center shadow-sm gap-4">
+                                                        <div>
+                                                            <h3 className="font-bold text-slate-900 text-base">{auc.productName}</h3>
+                                                            <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 mt-1">
+                                                                <span>Aktuálně: <strong className="text-emerald-600">{getCurrentHighest(auc).toLocaleString()} Kč</strong></span>
+                                                                <span className={getAuctionStatus(auc) === 'active' ? 'text-emerald-500 font-bold' : ''}>Status: {getAuctionStatus(auc) === 'active' ? 'Probíhá' : getAuctionStatus(auc) === 'scheduled' ? 'Připravuje se' : 'Skončila'}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex gap-2 flex-wrap">
+                                                            <button onClick={() => {
+                                                                setSelectedAuctionId(auc.id);
+                                                                setView('auction');
+                                                            }} className="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-3 py-2 rounded-xl transition">Sledovat detail</button>
+                                                            
+                                                            <button onClick={() => {
+                                                                setEditingAuctionId(auc.id);
+                                                                const sDate = new Date(auc.startTime);
+                                                                const eDate = new Date(auc.endTime);
+                                                                setEditForm({
+                                                                    title: auc.title,
+                                                                    productName: auc.productName,
+                                                                    description: auc.description,
+                                                                    imageUrl: auc.imageUrl,
+                                                                    startPrice: auc.startPrice,
+                                                                    minBidStep: auc.minBidStep,
+                                                                    autoExtendMinutes: auc.autoExtendMinutes,
+                                                                    startDate: toYMD(sDate),
+                                                                    startTime: toHM(sDate),
+                                                                    endDate: toYMD(eDate),
+                                                                    endTime: toHM(eDate)
+                                                                });
+                                                            }} className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-xs font-bold px-3 py-2 rounded-xl transition">Upravit</button>
+                                                            
+                                                            <button onClick={() => handleDeleteAuction(auc.id)} className="bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold px-3 py-2 rounded-xl transition">Smazat</button>
                                                         </div>
                                                     </div>
-                                                    <div className="flex gap-2 flex-wrap">
-                                                        <button onClick={() => {
-                                                            setSelectedAuctionId(auc.id);
-                                                            setView('auction');
-                                                        }} className="bg-blue-100 hover:bg-blue-200 text-blue-800 text-xs font-bold px-3 py-2 rounded-xl transition">Sledovat detail</button>
-                                                        
-                                                        <button onClick={() => {
-                                                            setEditingAuctionId(auc.id);
-                                                            const sDate = new Date(auc.startTime);
-                                                            const eDate = new Date(auc.endTime);
-                                                            setEditForm({
-                                                                title: auc.title,
-                                                                productName: auc.productName,
-                                                                description: auc.description,
-                                                                imageUrl: auc.imageUrl,
-                                                                startPrice: auc.startPrice,
-                                                                minBidStep: auc.minBidStep,
-                                                                autoExtendMinutes: auc.autoExtendMinutes,
-                                                                startDate: toYMD(sDate),
-                                                                startTime: toHM(sDate),
-                                                                endDate: toYMD(eDate),
-                                                                endTime: toHM(eDate)
-                                                            });
-                                                        }} className="bg-yellow-100 hover:bg-yellow-200 text-yellow-800 text-xs font-bold px-3 py-2 rounded-xl transition">Upravit</button>
-                                                        
-                                                        <button onClick={() => handleDeleteAuction(auc.id)} className="bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold px-3 py-2 rounded-xl transition">Smazat</button>
+                                                ))}
+                                                {auctions.length === 0 && (
+                                                    <div className="text-center p-8 bg-white rounded-2xl border text-slate-500 text-sm">
+                                                        Zatím nemáte vytvořené žádné aukce.
                                                     </div>
-                                                </div>
-                                            ))}
-                                            {auctions.length === 0 && (
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+
+                                {/* SEKCE 2: ÚČASTNÍCI */}
+                                {!selectedAdminAuction && !editingAuctionId && (
+                                    <div className="space-y-6">
+                                        <h1 className="text-xl font-black border-t pt-8">Registrovaní účastníci</h1>
+                                        <div className="space-y-3">
+                                            {participants.length === 0 ? (
                                                 <div className="text-center p-8 bg-white rounded-2xl border text-slate-500 text-sm">
-                                                    Zatím nemáte vytvořené žádné aukce.
+                                                    Zatím nejsou registrováni žádní účastníci.
+                                                </div>
+                                            ) : (
+                                                <div className="bg-white border rounded-2xl overflow-hidden shadow-sm">
+                                                    <ul className="divide-y divide-slate-100">
+                                                        {participants.map(p => (
+                                                            <li key={p.id} className="p-4 flex flex-col md:flex-row justify-between md:items-center hover:bg-slate-50 transition gap-2">
+                                                                <div>
+                                                                    <strong className="text-slate-900">{p.firstName} {p.lastName}</strong>
+                                                                </div>
+                                                                <div className="text-blue-600 font-mono text-sm font-bold bg-blue-50 border border-blue-100 px-3 py-1 rounded-lg w-fit">
+                                                                    {p.phone}
+                                                                </div>
+                                                            </li>
+                                                        ))}
+                                                    </ul>
                                                 </div>
                                             )}
                                         </div>
