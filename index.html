@@ -133,7 +133,6 @@
                 startDate: '', startTime: '', endDate: '', endTime: '' 
             });
 
-            const [bidSliderOffset, setBidSliderOffset] = React.useState(0);
             const [customBidInput, setCustomBidInput] = React.useState('');
             const [showConfirmModal, setShowConfirmModal] = React.useState(false);
             const [pendingBid, setPendingBid] = React.useState(0);
@@ -334,7 +333,6 @@
                 await fetchData();
                 setShowConfirmModal(false);
                 setCustomBidInput('');
-                setBidSliderOffset(0);
             };
 
             const currentAuction = auctions.find(a => a.id === selectedAuctionId);
@@ -351,7 +349,6 @@
             };
 
             const minStep = currentAuction ? (currentAuction.minBidStep || 100) : 100;
-            const calculatedBidAmount = currentAuction ? getCurrentHighest(currentAuction) + Number(bidSliderOffset) * minStep : 0;
 
             const IAukceLogo = () => (
                 <div className="flex items-center gap-2.5 cursor-pointer" onClick={() => { setView('home'); setSelectedAuctionId(null); setSelectedAdminAuction(null); }}>
@@ -566,6 +563,13 @@
                                     </div>
                                 </div>
 
+                                {/* FOTOGRAFIE PRODUKTU PŘÍMO NAD OVLÁDÁNÍM */}
+                                {currentAuction.imageUrl && (
+                                    <div className="w-full h-64 bg-slate-50 rounded-2xl p-2 border border-slate-100 flex items-center justify-center">
+                                        <img src={currentAuction.imageUrl} alt={currentAuction.productName} className="max-h-full object-contain" />
+                                    </div>
+                                )}
+
                                 <div className={`p-6 rounded-2xl border transition-all shadow-inner space-y-6 text-center ${
                                     isUserWinning(currentAuction) ? 'bg-emerald-50/70 border-emerald-300' : 'bg-rose-50/70 border-rose-300'
                                 }`}>
@@ -581,62 +585,65 @@
                                         )}
                                     </div>
 
-                                    {/* KOLEČKO (SLIDER) PRO PŘIHAZOVÁNÍ */}
-                                    <div className="flex flex-col items-center space-y-4">
-                                        <div className="relative w-52 h-52 flex items-center justify-center">
-                                            <div className="absolute inset-0 rounded-full border-4 border-slate-200 flex items-center justify-center">
-                                                <input 
-                                                    type="range" 
-                                                    min="0" 
-                                                    max="50" 
-                                                    value={bidSliderOffset} 
-                                                    onChange={e => setBidSliderOffset(e.target.value)} 
-                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
-                                                />
+                                    {/* NOVÉ JEDNODUCHÉ A INTUITIVNÍ OVLÁDÁNÍ PŘIHOZU */}
+                                    <div className="space-y-4 max-w-sm mx-auto">
+                                        <div className="flex items-center justify-center gap-2">
+                                            <button 
+                                                onClick={() => setPendingBid(prev => Math.max(getCurrentHighest(currentAuction) + minStep, prev - minStep))}
+                                                className="bg-white border border-slate-300 text-slate-800 font-bold px-4 py-3 rounded-xl shadow-sm hover:bg-slate-100 transition text-base"
+                                            >
+                                                -{minStep} Kč
+                                            </button>
+                                            
+                                            <div className="bg-white border-2 border-blue-600 px-6 py-3 rounded-xl shadow-sm flex-1 text-center">
+                                                <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400 block">Tvůj příhoz</span>
+                                                <span className="text-2xl font-black text-blue-600">{pendingBid ? pendingBid.toLocaleString() : (getCurrentHighest(currentAuction) + minStep).toLocaleString()}</span>
+                                                <span className="text-xs text-slate-500 font-semibold ml-1">Kč</span>
                                             </div>
-                                            <div className="w-40 h-40 rounded-full bg-white shadow-lg border-4 border-blue-600 flex flex-col items-center justify-center text-slate-900 z-10">
-                                                <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Tvůj příhoz</span>
-                                                <span className="text-2xl font-black text-blue-600">{calculatedBidAmount.toLocaleString()}</span>
-                                                <span className="text-[10px] text-slate-500 font-semibold">Kč</span>
-                                            </div>
-                                        </div>
-                                        <span className="text-xs text-slate-500">Posuň tažením po obvodu pro rychlé navýšení (krok {minStep} Kč)</span>
-                                    </div>
 
-                                    <div className="flex gap-2 max-w-sm mx-auto pt-2">
-                                        <input 
-                                            type="number" 
-                                            placeholder="Nebo vepiš vlastní částku..." 
-                                            value={customBidInput} 
-                                            onChange={e => setCustomBidInput(e.target.value)} 
-                                            className="bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm flex-1 text-slate-900 shadow-sm" 
-                                        />
+                                            <button 
+                                                onClick={() => setPendingBid(prev => (prev ? prev : getCurrentHighest(currentAuction) + minStep) + minStep)}
+                                                className="bg-white border border-slate-300 text-slate-800 font-bold px-4 py-3 rounded-xl shadow-sm hover:bg-slate-100 transition text-base"
+                                            >
+                                                +{minStep} Kč
+                                            </button>
+                                        </div>
+
+                                        <div className="flex gap-2">
+                                            <button onClick={() => setPendingBid(getCurrentHighest(currentAuction) + 100)} className="flex-1 bg-white border border-slate-200 text-xs font-bold py-2 rounded-lg text-slate-600 hover:bg-slate-50">+100 Kč</button>
+                                            <button onClick={() => setPendingBid(getCurrentHighest(currentAuction) + 500)} className="flex-1 bg-white border border-slate-200 text-xs font-bold py-2 rounded-lg text-slate-600 hover:bg-slate-50">+500 Kč</button>
+                                            <button onClick={() => setPendingBid(getCurrentHighest(currentAuction) + 1000)} className="flex-1 bg-white border border-slate-200 text-xs font-bold py-2 rounded-lg text-slate-600 hover:bg-slate-50">+1 000 Kč</button>
+                                        </div>
+
+                                        <div className="flex gap-2 pt-2">
+                                            <input 
+                                                type="number" 
+                                                placeholder="Nebo vepiš vlastní částku..." 
+                                                value={customBidInput} 
+                                                onChange={e => {
+                                                    setCustomBidInput(e.target.value);
+                                                    if (e.target.value) setPendingBid(Number(e.target.value));
+                                                }} 
+                                                className="bg-white border border-slate-300 rounded-xl px-4 py-2.5 text-sm flex-1 text-slate-900 shadow-sm" 
+                                            />
+                                        </div>
+
                                         <button 
                                             onClick={() => {
-                                                const val = Number(customBidInput);
+                                                const finalBid = pendingBid || (getCurrentHighest(currentAuction) + minStep);
                                                 const current = getCurrentHighest(currentAuction);
-                                                if (!val || val <= current) {
+                                                if (finalBid <= current) {
                                                     alert(`Příhoz musí být vyšší než aktuální cena (${current.toLocaleString()} Kč).`);
                                                     return;
                                                 }
-                                                setPendingBid(val);
+                                                setPendingBid(finalBid);
                                                 setShowConfirmModal(true);
-                                            }} 
-                                            className="bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm px-5 py-2.5 rounded-xl shadow transition"
+                                            }}
+                                            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg py-4 rounded-2xl shadow-xl transition transform active:scale-95"
                                         >
-                                            Vepsat
+                                            Potvrdit příhoz {(pendingBid || (getCurrentHighest(currentAuction) + minStep)).toLocaleString()} Kč
                                         </button>
                                     </div>
-
-                                    <button 
-                                        onClick={() => {
-                                            setPendingBid(calculatedBidAmount);
-                                            setShowConfirmModal(true);
-                                        }}
-                                        className="w-full max-w-sm bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg py-4 rounded-2xl shadow-xl transition transform active:scale-95"
-                                    >
-                                        Potvrdit příhoz {calculatedBidAmount.toLocaleString()} Kč
-                                    </button>
                                 </div>
 
                                 {/* ŽIVÁ HISTORIE PŘIHOZŮ (PRO UŽIVATELE) */}
