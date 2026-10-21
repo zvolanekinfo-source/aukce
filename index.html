@@ -55,10 +55,9 @@
 
             const [auctions, setAuctions] = React.useState([]);
             const [participants, setParticipants] = React.useState([]);
-            const [activeViewers, setActiveViewers] = React.useState({});
 
-            // Unikátní ID relace pro každé otevření stránky/záložky
-            const [clientSessionId] = React.useState(() => 'client_' + Math.random().toString(36).substring(2, 9));
+            // Sledování živých přítomností (live presence pro každou aukci)
+            const [activeViewers, setActiveViewers] = React.useState({});
 
             const fetchData = async () => {
                 try {
@@ -99,6 +98,7 @@
                 }
             };
 
+            // Globální listenery pro databázi aukcí a účastníků
             React.useEffect(() => {
                 fetchData();
 
@@ -112,7 +112,7 @@
                 };
             }, []);
 
-            // Sledování přítomnosti pro všechny aukce na hlavní stránce
+            // Globální sledování přítomnosti pro VŠECHNY aktivní aukce najednou, aby hlavní stránka viděla počty v reálném čase
             React.useEffect(() => {
                 if (auctions.length === 0) return;
 
@@ -120,7 +120,8 @@
                     const ch = supabase.channel(`room_global_${auc.id}`);
                     ch.on('presence', { event: 'sync' }, () => {
                         const state = ch.presenceState();
-                        setActiveViewers(prev => ({ ...prev, [auc.id]: Object.keys(state).length }));
+                        const count = Object.keys(state).length;
+                        setActiveViewers(prev => ({ ...prev, [auc.id]: count }));
                     }).subscribe();
                     return ch;
                 });
@@ -130,24 +131,25 @@
                 };
             }, [auctions.length]);
 
-            // Připojení do Supabase Presence v okamžiku, kdy uživatel vstoupí do detailu aukce
+            // Lokální přítomnost uživatele v detailu právě otevřené aukce
             React.useEffect(() => {
                 if (view !== 'auction' || !selectedAuctionId) return;
 
+                const userKey = user ? user.phone : (isAdmin ? 'Admin_' + Math.random() : 'Guest_' + Math.random());
                 const presenceChannel = supabase.channel(`room_global_${selectedAuctionId}`, {
-                    config: { presence: { key: clientSessionId } }
+                    config: { presence: { key: userKey } }
                 });
 
                 presenceChannel.subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
-                        await presenceChannel.track({ online_at: new Date().toISOString(), user: user ? user.phone : 'guest' });
+                        await presenceChannel.track({ online_at: new Date().toISOString() });
                     }
                 });
 
                 return () => {
                     supabase.removeChannel(presenceChannel);
                 };
-            }, [view, selectedAuctionId, user, clientSessionId]);
+            }, [view, selectedAuctionId, user, isAdmin]);
 
             const today = new Date();
             const tomorrow = new Date(Date.now() + 86400000);
@@ -1168,7 +1170,7 @@
             );
         }
 
-        ReactDOM.createRoot(getElementById('root')).render(<App />);
+        ReactDOM.createRoot(document.getElementById('root')).render(<App />);
     </script>
 </body>
 </html>
