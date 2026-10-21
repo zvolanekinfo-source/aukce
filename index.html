@@ -18,11 +18,11 @@
 
         function App() {
             const [user, setUser] = React.useState(() => {
-                const saved = localStorage.getItem('ad_session_v5');
+                const saved = localStorage.getItem('ad_session_v6');
                 return saved ? JSON.parse(saved) : null;
             });
             const [isAdmin, setIsAdmin] = React.useState(() => {
-                return localStorage.getItem('ad_auth_v5') === 'true';
+                return localStorage.getItem('ad_auth_v6') === 'true';
             });
             
             const [view, setView] = React.useState('home');
@@ -46,12 +46,12 @@
             }, []);
 
             const [auctions, setAuctions] = React.useState(() => {
-                const saved = localStorage.getItem('ad_auctions_v5');
+                const saved = localStorage.getItem('ad_auctions_v6');
                 return saved ? JSON.parse(saved) : [];
             });
 
             const [participants, setParticipants] = React.useState(() => {
-                const saved = localStorage.getItem('ad_participants_v5');
+                const saved = localStorage.getItem('ad_participants_v6');
                 return saved ? JSON.parse(saved) : [];
             });
 
@@ -79,10 +79,10 @@
 
             React.useEffect(() => {
                 const handleStorageChange = (e) => {
-                    if (e.key === 'ad_auctions_v5' && e.newValue) {
+                    if (e.key === 'ad_auctions_v6' && e.newValue) {
                         try { setAuctions(JSON.parse(e.newValue)); } catch (err) {}
                     }
-                    if (e.key === 'ad_participants_v5' && e.newValue) {
+                    if (e.key === 'ad_participants_v6' && e.newValue) {
                         try { setParticipants(JSON.parse(e.newValue)); } catch (err) {}
                     }
                 };
@@ -90,10 +90,10 @@
                 return () => window.removeEventListener('storage', handleStorageChange);
             }, []);
 
-            React.useEffect(() => { localStorage.setItem('ad_session_v5', JSON.stringify(user)); }, [user]);
-            React.useEffect(() => { localStorage.setItem('ad_auth_v5', isAdmin); }, [isAdmin]);
-            React.useEffect(() => { localStorage.setItem('ad_auctions_v5', JSON.stringify(auctions)); }, [auctions]);
-            React.useEffect(() => { localStorage.setItem('ad_participants_v5', JSON.stringify(participants)); }, [participants]);
+            React.useEffect(() => { localStorage.setItem('ad_session_v6', JSON.stringify(user)); }, [user]);
+            React.useEffect(() => { localStorage.setItem('ad_auth_v6', isAdmin); }, [isAdmin]);
+            React.useEffect(() => { localStorage.setItem('ad_auctions_v6', JSON.stringify(auctions)); }, [auctions]);
+            React.useEffect(() => { localStorage.setItem('ad_participants_v6', JSON.stringify(participants)); }, [participants]);
 
             const handleAdminLogin = async (e) => {
                 e.preventDefault();
@@ -104,7 +104,7 @@
                     const inputHashArray = Array.from(new Uint8Array(inputHashBuffer));
                     const inputHashHex = inputHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
                     
-                    const targetPass = String.fromCharCode(64, 100, 109, 105, 110, 49); // @dmin1
+                    const targetPass = String.fromCharCode(64, 100, 109, 105, 110, 49);
                     const targetData = encoder.encode(targetPass);
                     const targetHashBuffer = await crypto.subtle.digest('SHA-256', targetData);
                     const targetHashArray = Array.from(new Uint8Array(targetHashBuffer));
@@ -193,7 +193,7 @@
                 };
                 const updatedAuctions = [created, ...auctions];
                 setAuctions(updatedAuctions);
-                localStorage.setItem('ad_auctions_v5', JSON.stringify(updatedAuctions));
+                localStorage.setItem('ad_auctions_v6', JSON.stringify(updatedAuctions));
                 setNewAuction({ title: '', productName: '', description: '', imageUrl: '', startPrice: 1000, startDate: toYMD(new Date()), startTime: toHM(new Date()), endDate: toYMD(new Date(Date.now() + 86400000)), endTime: toHM(new Date(Date.now() + 86400000)) });
                 
                 if (submitAction === 'draft') alert('Aukce byla bezpečně uložena do konceptů.');
@@ -206,7 +206,7 @@
                     return a;
                 });
                 setAuctions(updated);
-                localStorage.setItem('ad_auctions_v5', JSON.stringify(updated));
+                localStorage.setItem('ad_auctions_v6', JSON.stringify(updated));
             };
 
             const handleEndAuctionEarly = (aucId) => {
@@ -216,7 +216,7 @@
                         return a;
                     });
                     setAuctions(updated);
-                    localStorage.setItem('ad_auctions_v5', JSON.stringify(updated));
+                    localStorage.setItem('ad_auctions_v6', JSON.stringify(updated));
                     if (selectedAdminAuction && selectedAdminAuction.id === aucId) {
                         setSelectedAdminAuction({ ...selectedAdminAuction, forceEnded: true });
                     }
@@ -264,7 +264,7 @@
                     return a;
                 });
                 setAuctions(updated);
-                localStorage.setItem('ad_auctions_v5', JSON.stringify(updated));
+                localStorage.setItem('ad_auctions_v6', JSON.stringify(updated));
                 setShowConfirmModal(false);
                 setCustomBidInput('');
             };
@@ -444,7 +444,6 @@
                                     </div>
                                 </div>
 
-                                {/* Diskrétní vyjížděcí pole pro Admina */}
                                 <div className="text-center">
                                     <button onClick={() => setShowAdminLoginBox(!showAdminLoginBox)} className="text-xs text-slate-500 hover:text-slate-800 underline font-medium">
                                         {showAdminLoginBox ? 'Skrýt administrátorský vstup' : 'Přihlášení pro administrátora'}
@@ -857,7 +856,6 @@
 
                     </main>
 
-                    {/* Pevná dolní lišta s modrým tlačítkem OK */}
                     <div className={`fixed bottom-0 left-0 w-full z-50 transition-transform duration-300 ${footerVisible ? 'translate-y-0' : 'translate-y-full'}`}>
                         <footer className="bg-white border-t border-slate-200 text-center py-4 px-4 text-xs text-slate-600 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] relative">
                             <div className="max-w-xl mx-auto space-y-1">
@@ -869,7 +867,6 @@
                                 </p>
                             </div>
                             
-                            {/* Modré tlačítko OK pro schování lišty dolů */}
                             <button 
                                 onClick={() => setFooterVisible(false)}
                                 className="absolute right-4 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-4 py-2 rounded-xl transition shadow"
@@ -879,7 +876,6 @@
                         </footer>
                     </div>
 
-                    {/* Malá šipka pro vyjetí lišty zpět */}
                     {!footerVisible && (
                         <button 
                             onClick={() => setFooterVisible(true)}
