@@ -8,32 +8,28 @@
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen">
     <div id="root"></div>
 
     <script type="text/babel">
-        const SUPABASE_URL = 'https://uwfpyjbvgyesxmpzedcs.supabase.co';
-        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV3ZnB5amJ2Z3llc3htcHplZGNzIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI2MDA1NzcsImV4cCI6MjEwODE3NjU3N30.Cm4SM1Y1C2XKO-HGCYsbJYfknyHntyWD-BfCmkx5x7o';
-        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
         const toYMD = (date) => `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
         const toHM = (date) => `${String(date.getHours()).padStart(2,'0')}:${String(date.getMinutes()).padStart(2,'0')}`;
 
         function App() {
             const [user, setUser] = React.useState(() => {
-                const saved = localStorage.getItem('ad_session_v5');
+                const saved = localStorage.getItem('ad_session_v6');
                 return saved ? JSON.parse(saved) : null;
             });
             const [isAdmin, setIsAdmin] = React.useState(() => {
-                return localStorage.getItem('ad_auth_v5') === 'true';
+                return localStorage.getItem('ad_auth_v6') === 'true';
             });
             
             const [view, setView] = React.useState('home');
             const [selectedAuctionId, setSelectedAuctionId] = React.useState(null);
             const [selectedAdminAuction, setSelectedAdminAuction] = React.useState(null);
 
+            const [footerVisible, setFooterVisible] = React.useState(true);
             const [showAdminLoginBox, setShowAdminLoginBox] = React.useState(false);
             const [showAuthMenu, setShowAuthMenu] = React.useState(false);
 
@@ -50,78 +46,15 @@
                 return () => clearInterval(interval);
             }, []);
 
-            const [auctions, setAuctions] = React.useState([]);
-            const [participants, setParticipants] = React.useState([]);
+            const [auctions, setAuctions] = React.useState(() => {
+                const saved = localStorage.getItem('ad_auctions_v6');
+                return saved ? JSON.parse(saved) : [];
+            });
 
-            const loadDataFromSupabase = async () => {
-                try {
-                    const { data: aucData } = await supabase
-                        .from('auctions')
-                        .select('*')
-                        .order('created_at', { ascending: false });
-
-                    const { data: bidData } = await supabase
-                        .from('bids')
-                        .select('*, participants(first_name, last_name, phone)');
-
-                    if (aucData) {
-                        const formattedAuctions = aucData.map(a => {
-                            const aucBids = (bidData || [])
-                                .filter(b => b.auction_id === a.id)
-                                .map(b => ({
-                                    id: b.id,
-                                    participantId: b.participant_id,
-                                    firstName: b.participants ? b.participants.first_name : 'Neznámý',
-                                    lastName: b.participants ? b.participants.last_name : '',
-                                    phone: b.participants ? b.participants.phone : '',
-                                    amount: Number(b.amount),
-                                    time: new Date(b.created_at).toLocaleTimeString()
-                                }))
-                                .sort((x, y) => y.amount - x.amount);
-
-                            return {
-                                id: a.id,
-                                title: a.title,
-                                productName: a.product_name || a.title,
-                                description: a.description,
-                                imageUrl: a.image_url,
-                                startPrice: Number(a.starting_price),
-                                startTime: a.start_time,
-                                endTime: a.ends_at,
-                                forceEnded: a.status === 'ended',
-                                isDraft: a.status === 'draft',
-                                bids: aucBids
-                            };
-                        });
-                        setAuctions(formattedAuctions);
-                    }
-
-                    if (isAdmin) {
-                        const { data: partData } = await supabase.from('participants').select('*');
-                        if (partData) {
-                            setParticipants(partData.map(p => ({
-                                id: p.id,
-                                firstName: p.first_name,
-                                lastName: p.last_name,
-                                phone: p.phone
-                            })));
-                        }
-                    }
-                } catch (err) {
-                    console.error('Chyba při načítání:', err);
-                }
-            };
-
-            React.useEffect(() => {
-                loadDataFromSupabase();
-                const channel = supabase.channel('realtime-auctions')
-                    .on('postgres_changes', { event: '*', schema: 'public' }, () => {
-                        loadDataFromSupabase();
-                    })
-                    .subscribe();
-
-                return () => { supabase.removeChannel(channel); };
-            }, [isAdmin]);
+            const [participants, setParticipants] = React.useState(() => {
+                const saved = localStorage.getItem('ad_participants_v6');
+                return saved ? JSON.parse(saved) : [];
+            });
 
             const today = new Date();
             const tomorrow = new Date(Date.now() + 86400000);
@@ -138,61 +71,83 @@
                 endTime: toHM(tomorrow)
             });
 
+            // Editace existující aukce v adminu
+            const [editingAuctionId, setEditingAuctionId] = React.useState(null);
+            const [editForm, setEditForm] = React.useState({ title: '', productName: '', description: '', imageUrl: '', startPrice: 1000 });
+
             const [submitAction, setSubmitAction] = React.useState('publish');
-            
-            // Stav pro kruhový posuvník / rotátor příhozů
             const [bidSliderOffset, setBidSliderOffset] = React.useState(0);
             const [customBidInput, setCustomBidInput] = React.useState('');
             const [showConfirmModal, setShowConfirmModal] = React.useState(false);
             const [pendingBid, setPendingBid] = React.useState(0);
 
-            React.useEffect(() => { localStorage.setItem('ad_session_v5', JSON.stringify(user)); }, [user]);
-            React.useEffect(() => { localStorage.setItem('ad_auth_v5', isAdmin); }, [isAdmin]);
+            React.useEffect(() => {
+                const handleStorageChange = (e) => {
+                    if (e.key === 'ad_auctions_v6' && e.newValue) {
+                        try { setAuctions(JSON.parse(e.newValue)); } catch (err) {}
+                    }
+                    if (e.key === 'ad_participants_v6' && e.newValue) {
+                        try { setParticipants(JSON.parse(e.newValue)); } catch (err) {}
+                    }
+                };
+                window.addEventListener('storage', handleStorageChange);
+                return () => window.removeEventListener('storage', handleStorageChange);
+            }, []);
+
+            React.useEffect(() => { localStorage.setItem('ad_session_v6', JSON.stringify(user)); }, [user]);
+            React.useEffect(() => { localStorage.setItem('ad_auth_v6', isAdmin); }, [isAdmin]);
+            React.useEffect(() => { localStorage.setItem('ad_auctions_v6', JSON.stringify(auctions)); }, [auctions]);
+            React.useEffect(() => { localStorage.setItem('ad_participants_v6', JSON.stringify(participants)); }, [participants]);
 
             const handleAdminLogin = async (e) => {
                 e.preventDefault();
-                const targetPass = String.fromCharCode(64, 100, 109, 105, 110, 49);
-                if (adminUser.trim() === 'Zvolanek1' && adminPassword === targetPass) {
-                    setUser(null); setIsAdmin(true); setAdminLoginError(false); setView('admin');
-                } else { setAdminLoginError(true); }
-            };
+                try {
+                    const encoder = new TextEncoder();
+                    const inputData = encoder.encode(adminPassword);
+                    const inputHashBuffer = await crypto.subtle.digest('SHA-256', inputData);
+                    const inputHashArray = Array.from(new Uint8Array(inputHashBuffer));
+                    const inputHashHex = inputHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+                    
+                    const targetPass = String.fromCharCode(64, 100, 109, 105, 110, 49);
+                    const targetData = encoder.encode(targetPass);
+                    const targetHashBuffer = await crypto.subtle.digest('SHA-256', targetData);
+                    const targetHashArray = Array.from(new Uint8Array(targetHashBuffer));
+                    const targetHashHex = targetHashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 
-            const handleRegister = async (e) => {
-                e.preventDefault();
-                if (!regForm.firstName || !regForm.lastName || !regForm.phone) return;
-                const participantId = 'part-' + Date.now();
-                const newUser = { 
-                    id: participantId, 
-                    first_name: regForm.firstName.trim(), 
-                    last_name: regForm.lastName.trim(), 
-                    phone: regForm.phone.trim() 
-                };
-
-                await supabase.from('participants').insert([newUser]);
-                setUser({ id: participantId, firstName: newUser.first_name, lastName: newUser.last_name, phone: newUser.phone });
-                setIsAdmin(false);
-                setView('home');
-            };
-
-            const handleLoginExisting = async (e) => {
-                e.preventDefault();
-                const { data } = await supabase
-                    .from('participants')
-                    .select('*')
-                    .ilike('last_name', loginForm.lastName.trim())
-                    .eq('phone', loginForm.phone.trim());
-
-                if (data && data.length > 0) {
-                    const found = data[0];
-                    setUser({ id: found.id, firstName: found.first_name, lastName: found.last_name, phone: found.phone });
-                    setIsAdmin(false); 
-                    setView('home');
-                } else { 
-                    alert('Účastník nebyl nalezen.'); 
+                    if (adminUser.trim() === 'Zvolanek1' && inputHashHex === targetHashHex) {
+                        setUser(null); setIsAdmin(true); setAdminLoginError(false); setView('admin');
+                    } else { setAdminLoginError(true); }
+                } catch (err) {
+                    const targetPass = String.fromCharCode(64, 100, 109, 105, 110, 49);
+                    if (adminUser.trim() === 'Zvolanek1' && adminPassword === targetPass) {
+                        setUser(null); setIsAdmin(true); setAdminLoginError(false); setView('admin');
+                    } else { setAdminLoginError(true); }
                 }
             };
 
-            const handleImageUpload = (e) => {
+            const handleRegister = (e) => {
+                e.preventDefault();
+                if (!regForm.firstName || !regForm.lastName || !regForm.phone) {
+                    alert('Prosím vyplňte všechna pole.'); return;
+                }
+                const newUser = { id: Date.now(), firstName: regForm.firstName.trim(), lastName: regForm.lastName.trim(), phone: regForm.phone.trim() };
+                setIsAdmin(false); setUser(newUser);
+                const updatedParticipants = [...participants];
+                if (!updatedParticipants.some(p => p.phone === newUser.phone)) {
+                    updatedParticipants.push(newUser);
+                    setParticipants(updatedParticipants);
+                }
+                setView('home');
+            };
+
+            const handleLoginExisting = (e) => {
+                e.preventDefault();
+                const found = participants.find(p => p.lastName.toLowerCase() === loginForm.lastName.trim().toLowerCase() && p.phone.trim() === loginForm.phone.trim());
+                if (found) { setIsAdmin(false); setUser(found); setView('home'); } 
+                else { alert('Účastník s tímto příjmením a telefonním číslem nebyl nalezen.'); }
+            };
+
+            const handleImageUpload = (e, isEdit = false) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
@@ -201,52 +156,99 @@
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
                         const MAX_WIDTH = 800;
-                        let scale = img.width > MAX_WIDTH ? MAX_WIDTH / img.width : 1;
+                        let scale = 1;
+                        if (img.width > MAX_WIDTH) { scale = MAX_WIDTH / img.width; }
                         canvas.width = img.width * scale;
                         canvas.height = img.height * scale;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        setNewAuction({...newAuction, imageUrl: canvas.toDataURL('image/jpeg', 0.8)});
+                        const base64 = canvas.toDataURL('image/jpeg', 0.8);
+                        if (isEdit) {
+                            setEditForm({...editForm, imageUrl: base64});
+                        } else {
+                            setNewAuction({...newAuction, imageUrl: base64});
+                        }
                     };
                     img.src = event.target.result;
                 };
                 reader.readAsDataURL(file);
             };
 
-            const handleCreateAuction = async (e) => {
+            const handleCreateAuction = (e) => {
                 e.preventDefault();
                 const startStr = `${newAuction.startDate}T${newAuction.startTime}`;
                 const endStr = `${newAuction.endDate}T${newAuction.endTime}`;
+                const start = new Date(startStr).getTime();
+                const end = new Date(endStr).getTime();
                 
-                const dbAuction = {
+                if (end <= start) {
+                    alert('Čas ukončení musí být později než čas spuštění.');
+                    return;
+                }
+
+                const created = {
                     id: 'auc-' + Date.now(),
                     title: newAuction.title,
-                    product_name: newAuction.productName,
+                    productName: newAuction.productName,
                     description: newAuction.description,
-                    image_url: newAuction.imageUrl || '',
-                    starting_price: Number(newAuction.startPrice),
-                    current_price: Number(newAuction.startPrice),
-                    start_time: new Date(startStr).toISOString(),
-                    ends_at: new Date(endStr).toISOString(),
-                    status: submitAction === 'draft' ? 'draft' : 'active'
+                    imageUrl: newAuction.imageUrl || '',
+                    startPrice: Number(newAuction.startPrice),
+                    startTime: new Date(startStr).toISOString(),
+                    endTime: new Date(endStr).toISOString(),
+                    forceEnded: false,
+                    isDraft: submitAction === 'draft',
+                    bids: []
                 };
-
-                await supabase.from('auctions').insert([dbAuction]);
+                const updatedAuctions = [created, ...auctions];
+                setAuctions(updatedAuctions);
+                localStorage.setItem('ad_auctions_v6', JSON.stringify(updatedAuctions));
                 setNewAuction({ title: '', productName: '', description: '', imageUrl: '', startPrice: 1000, startDate: toYMD(today), startTime: toHM(today), endDate: toYMD(tomorrow), endTime: toHM(tomorrow) });
-                loadDataFromSupabase();
-                setSelectedAdminAuction(null);
-                setView('admin');
+                
+                if (submitAction === 'draft') alert('Aukce byla bezpečně uložena do konceptů.');
+                else alert('Aukce byla úspěšně vytvořena a naplánována!');
             };
 
-            const handlePublishDraft = async (aucId) => {
-                await supabase.from('auctions').update({ status: 'active' }).eq('id', aucId);
-                loadDataFromSupabase();
+            const handleSaveEditAuction = (e) => {
+                e.preventDefault();
+                const updated = auctions.map(a => {
+                    if (a.id === editingAuctionId) {
+                        return {
+                            ...a,
+                            title: editForm.title,
+                            productName: editForm.productName,
+                            description: editForm.description,
+                            imageUrl: editForm.imageUrl,
+                            startPrice: Number(editForm.startPrice)
+                        };
+                    }
+                    return a;
+                });
+                setAuctions(updated);
+                localStorage.setItem('ad_auctions_v6', JSON.stringify(updated));
+                setEditingAuctionId(null);
+                alert('Aukce byla úspěšně aktualizována.');
             };
 
-            const handleEndAuctionEarly = async (aucId) => {
-                if (confirm('Opravdu chcete tuto aukci ukončit?')) {
-                    await supabase.from('auctions').update({ status: 'ended' }).eq('id', aucId);
-                    loadDataFromSupabase();
+            const handlePublishDraft = (aucId) => {
+                const updated = auctions.map(a => {
+                    if (a.id === aucId) return { ...a, isDraft: false };
+                    return a;
+                });
+                setAuctions(updated);
+                localStorage.setItem('ad_auctions_v6', JSON.stringify(updated));
+            };
+
+            const handleEndAuctionEarly = (aucId) => {
+                if (confirm('Opravdu chcete tuto aukci okamžitě ukončit?')) {
+                    const updated = auctions.map(a => {
+                        if (a.id === aucId) return { ...a, forceEnded: true };
+                        return a;
+                    });
+                    setAuctions(updated);
+                    localStorage.setItem('ad_auctions_v6', JSON.stringify(updated));
+                    if (selectedAdminAuction && selectedAdminAuction.id === aucId) {
+                        setSelectedAdminAuction({ ...selectedAdminAuction, forceEnded: true });
+                    }
                 }
             };
 
@@ -260,85 +262,122 @@
                 return 'ended';
             };
 
-            const confirmBid = async () => {
-                if (!user) return;
-                const newBid = {
-                    id: 'bid-' + Date.now(),
-                    auction_id: selectedAuctionId,
-                    participant_id: user.id,
-                    amount: pendingBid
-                };
+            const getTimeLeftFormat = (targetTime) => {
+                const diff = targetTime - now;
+                if (diff <= 0) return '00:00:00';
+                const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+                const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
+                const m = Math.floor((diff / 1000 / 60) % 60);
+                const s = Math.floor((diff / 1000) % 60);
+                return `${d > 0 ? d + 'd ' : ''}${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+            };
 
-                await supabase.from('bids').insert([newBid]);
-                await supabase.from('auctions').update({ current_price: pendingBid }).eq('id', selectedAuctionId);
-
+            const confirmBid = () => {
+                const updated = auctions.map(a => {
+                    if (a.id === selectedAuctionId) {
+                        const newBidObj = {
+                            id: Date.now(),
+                            userId: user.id || user.phone,
+                            firstName: user.firstName,
+                            lastName: user.lastName,
+                            phone: user.phone,
+                            amount: pendingBid,
+                            time: new Date().toLocaleTimeString()
+                        };
+                        return { ...a, bids: [newBidObj, ...a.bids] };
+                    }
+                    return a;
+                });
+                setAuctions(updated);
+                localStorage.setItem('ad_auctions_v6', JSON.stringify(updated));
                 setShowConfirmModal(false);
                 setCustomBidInput('');
                 setBidSliderOffset(0);
-                loadDataFromSupabase();
             };
 
             const currentAuction = auctions.find(a => a.id === selectedAuctionId);
-            const getCurrentHighest = (auc) => (!auc.bids || auc.bids.length === 0) ? auc.startPrice : Math.max(...auc.bids.map(b => b.amount));
 
-            // Zjištění, zda aktuální přihlášený uživatel vede aukci
-            const isUserWinning = (auc) => {
-                if (!user || !auc.bids || auc.bids.length === 0) return false;
-                const highestBid = auc.bids[0]; // Seřazené sestupně
-                return highestBid.participantId === user.id;
+            const getCurrentHighest = (auc) => {
+                if (!auc.bids || auc.bids.length === 0) return auc.startPrice;
+                return Math.max(...auc.bids.map(b => b.amount));
             };
 
-            // Výpočet navýšení z kruhového slideru (0 až 100% posunu = navýšení 0 až 50 000 Kč)
+            const isUserWinning = (auc) => {
+                if (!user || !auc.bids || auc.bids.length === 0) return false;
+                return auc.bids[0].firstName === user.firstName && auc.bids[0].phone === user.phone;
+            };
+
             const calculatedBidAmount = currentAuction ? getCurrentHighest(currentAuction) + Number(bidSliderOffset) * 100 : 0;
+
+            const publicAuctions = auctions.filter(a => !a.isDraft);
 
             return (
                 <div className="min-h-screen flex flex-col bg-slate-50 text-slate-800 font-sans antialiased pb-24 relative">
                     <header className="bg-white/90 backdrop-blur border-b border-slate-200 sticky top-0 z-40 px-4 py-3 flex items-center justify-between shadow-sm">
                         <div className="flex items-center gap-2 cursor-pointer" onClick={() => { setView('home'); setSelectedAuctionId(null); setSelectedAdminAuction(null); }}>
-                            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md">
-                                <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none"><rect x="4" y="13" width="4" height="7" rx="1" fill="currentColor" /><rect x="10" y="9" width="4" height="11" rx="1" fill="currentColor" /><rect x="16" y="4" width="4" height="16" rx="1" fill="currentColor" /></svg>
+                            <div className="bg-blue-600 p-2 rounded-xl text-white shadow-md flex items-center justify-center">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 11l-6-6m0 0l-6 6m6-6v12M5 19h14" />
+                                </svg>
                             </div>
                             <div>
-                                <span className="text-xl font-black text-slate-900"><span className="text-blue-600">i</span>aukce</span>
-                                <span className="block text-[10px] text-slate-500 uppercase font-semibold">Live aukce Duo</span>
+                                <span className="text-xl font-black tracking-wider text-slate-900">Aukce <span className="text-blue-600">Duo</span></span>
+                                <span className="block text-[10px] text-slate-500 tracking-widest uppercase font-semibold">Soukromé aukce</span>
                             </div>
                         </div>
 
                         <div className="flex items-center gap-3">
                             {isAdmin ? (
-                                <div className="text-xs bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-200">
-                                    Admin <button onClick={() => { setIsAdmin(false); setView('home'); }} className="ml-2 text-red-500 font-bold">Odhlásit</button>
+                                <div className="text-xs md:text-sm bg-indigo-50 px-3 py-1.5 rounded-full border border-indigo-200 text-slate-700 shadow-inner">
+                                    Přihlášen: <span className="font-bold text-indigo-600">Administrátor</span>
+                                    <button onClick={() => { setIsAdmin(false); setView('home'); }} className="ml-2 text-red-500 hover:underline font-medium">Odhlásit</button>
                                 </div>
                             ) : user ? (
-                                <div className="text-xs bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200">
-                                    {user.firstName} {user.lastName} <button onClick={() => { setUser(null); setView('home'); }} className="ml-2 text-red-500 font-bold">Odhlásit</button>
+                                <div className="text-xs md:text-sm bg-blue-50 px-3 py-1.5 rounded-full border border-blue-200 text-slate-700 shadow-inner">
+                                    Přihlášen: <span className="font-bold text-blue-600">{user.firstName} {user.lastName}</span>
+                                    <button onClick={() => { setUser(null); setView('home'); }} className="ml-2 text-red-500 hover:underline font-medium">Odhlásit</button>
                                 </div>
-                            ) : (
-                                <button onClick={() => setShowAuthMenu(!showAuthMenu)} className="text-sm bg-blue-600 text-white font-bold px-4 py-2 rounded-xl shadow">Přihlášení</button>
-                            )}
-                            
-                            {showAuthMenu && !user && !isAdmin && (
-                                <div className="absolute right-4 top-16 w-72 bg-white rounded-xl border border-slate-200 shadow-xl p-3 z-50 text-left space-y-3">
-                                    <button onClick={() => { setView('register'); setShowAuthMenu(false); }} className="w-full bg-blue-600 text-white font-bold text-sm py-2 rounded-lg">Registrace účastníka</button>
-                                    <form onSubmit={handleLoginExisting} className="space-y-2 border-t pt-2">
-                                        <input type="text" placeholder="Příjmení" value={loginForm.lastName} onChange={e => setLoginForm({...loginForm, lastName: e.target.value})} className="w-full border rounded p-2 text-sm" />
-                                        <input type="tel" placeholder="Telefon" value={loginForm.phone} onChange={e => setLoginForm({...loginForm, phone: e.target.value})} className="w-full border rounded p-2 text-sm" />
-                                        <button type="submit" className="w-full bg-slate-800 text-white font-bold py-2 rounded text-sm">Přihlásit se</button>
-                                    </form>
-                                    <div className="border-t pt-2">
-                                        <button onClick={() => setShowAdminLoginBox(!showAdminLoginBox)} className="text-xs text-slate-500 font-semibold">Přihlášení administrátora</button>
-                                        {showAdminLoginBox && (
-                                            <form onSubmit={handleAdminLogin} className="mt-2 space-y-2">
-                                                <input type="text" placeholder="Admin jméno" value={adminUser} onChange={e => setAdminUser(e.target.value)} className="w-full border rounded p-1 text-sm" />
-                                                <input type="password" placeholder="Heslo" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full border rounded p-1 text-sm" />
-                                                {adminLoginError && <span className="text-xs text-red-600">Chyba</span>}
-                                                <button type="submit" className="w-full bg-blue-600 text-white py-1 rounded text-sm">Vstoupit jako Admin</button>
+                            ) : null}
+
+                            {!isAdmin && !user ? (
+                                <div className="relative">
+                                    <button
+                                        onClick={() => { setShowAuthMenu(!showAuthMenu); setShowAdminLoginBox(false); }}
+                                        className="text-sm bg-blue-600 hover:bg-blue-700 text-white font-bold px-4 py-2.5 rounded-xl transition shadow-md"
+                                    >
+                                        Přihlášení / Registrace
+                                    </button>
+                                    {showAuthMenu && (
+                                        <div className="absolute right-0 top-full mt-2 w-72 bg-white rounded-xl border border-slate-200 shadow-xl p-3 z-50 text-left space-y-3">
+                                            <button onClick={() => { setView('register'); setShowAuthMenu(false); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm px-4 py-2.5 rounded-lg shadow-sm transition">
+                                                Registrace účastníka
+                                            </button>
+                                            <form onSubmit={handleLoginExisting} className="space-y-2 border-t border-slate-100 pt-3">
+                                                <span className="text-xs font-bold text-slate-700 block">Již registrován:</span>
+                                                <input type="text" placeholder="Příjmení" value={loginForm.lastName} onChange={e => setLoginForm({...loginForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900" />
+                                                <input type="tel" placeholder="Telefonní číslo" value={loginForm.phone} onChange={e => setLoginForm({...loginForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900" />
+                                                <button type="submit" className="w-full bg-slate-800 hover:bg-slate-900 text-white font-bold py-2 rounded-lg text-sm shadow-sm">Přihlásit se</button>
                                             </form>
-                                        )}
-                                    </div>
+
+                                            <div className="mt-3 pt-3 border-t border-slate-100">
+                                                <button onClick={() => setShowAdminLoginBox(!showAdminLoginBox)} className="text-xs text-slate-500 hover:text-blue-700 font-semibold">
+                                                    {showAdminLoginBox ? 'Skrýt admin vstup' : 'Přihlášení administrátora'}
+                                                </button>
+                                                {showAdminLoginBox && (
+                                                    <form onSubmit={handleAdminLogin} className="mt-3 space-y-2">
+                                                        <input type="text" placeholder="Uživatelské jméno" value={adminUser} onChange={e => setAdminUser(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900" />
+                                                        <input type="password" placeholder="Heslo" value={adminPassword} onChange={e => setAdminPassword(e.target.value)} className="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900" />
+                                                        {adminLoginError && <span className="text-[10px] text-red-600 block">Nesprávné údaje.</span>}
+                                                        <button type="submit" className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-lg text-xs shadow-sm">Vstoupit jako Admin</button>
+                                                    </form>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                            {isAdmin && <button onClick={() => { setView('admin'); setSelectedAdminAuction(null); }} className="text-sm bg-blue-600 text-white px-4 py-2 rounded-xl font-bold shadow">Správa</button>}
+                            ) : isAdmin ? (
+                                <button onClick={() => { setView('admin'); setSelectedAdminAuction(null); }} className="text-sm bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold transition shadow-md">Správa aukcí</button>
+                            ) : null}
                         </div>
                     </header>
 
@@ -355,37 +394,102 @@
                                     </p>
                                 </div>
 
-                                <h2 className="text-xl font-bold text-slate-900 border-b border-slate-200 pb-2">Probíhající aukce</h2>
-                                <div className="grid gap-6 md:grid-cols-2">
-                                    {auctions.filter(a => !a.isDraft).map(auc => {
-                                        const currentPrice = getCurrentHighest(auc);
-                                        return (
-                                            <div key={auc.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-md flex flex-col justify-between">
-                                                <div className="p-5 space-y-2">
-                                                    <span className="text-xs text-blue-600 font-bold uppercase">{auc.title}</span>
-                                                    <h3 className="text-lg font-bold text-slate-900">{auc.productName}</h3>
-                                                    <span className="text-2xl font-black text-emerald-600 mt-2 block">{currentPrice.toLocaleString()} Kč</span>
+                                <h2 className="text-xl font-bold text-slate-900 border-b border-slate-200 pb-2">Probíhající a připravené aukce</h2>
+                                
+                                {publicAuctions.length === 0 ? (
+                                    <div className="bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-sm">
+                                        <p className="text-slate-500 text-sm">Aktuálně neprobíhají žádné aukce.</p>
+                                    </div>
+                                ) : (
+                                    <div className="grid gap-6 md:grid-cols-2">
+                                        {publicAuctions.map(auc => {
+                                            const currentPrice = getCurrentHighest(auc);
+                                            const status = getAuctionStatus(auc);
+                                            const startTime = new Date(auc.startTime).getTime();
+                                            const endTime = new Date(auc.endTime).getTime();
+
+                                            return (
+                                                <div key={auc.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-md flex flex-col justify-between hover:border-blue-300 transition">
+                                                    <div>
+                                                        <div className="h-56 relative bg-white flex items-center justify-center p-2 border-b border-slate-100">
+                                                            {auc.imageUrl ? (
+                                                                <img src={auc.imageUrl} alt={auc.productName} className="w-full h-full object-contain drop-shadow-sm" />
+                                                            ) : (
+                                                                <span className="text-slate-300 text-xs">Bez fotografie</span>
+                                                            )}
+                                                            
+                                                            <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
+                                                                <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-md ${
+                                                                    status === 'active' ? 'bg-emerald-600 text-white' : 
+                                                                    status === 'scheduled' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-white'
+                                                                }`}>
+                                                                    {status === 'active' ? 'Probíhá' : status === 'scheduled' ? 'Připravuje se' : 'Skončila'}
+                                                                </span>
+                                                                
+                                                                {status === 'active' && (
+                                                                    <span className="bg-white/90 backdrop-blur text-slate-800 text-[10px] font-bold px-2 py-1 rounded-md shadow flex items-center gap-1 border border-slate-200">
+                                                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                                                                        Končí za: {getTimeLeftFormat(endTime)}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <div className="p-5 space-y-2">
+                                                            <span className="text-xs text-blue-600 font-bold uppercase tracking-wide">{auc.title}</span>
+                                                            <h3 className="text-lg font-bold text-slate-900">{auc.productName}</h3>
+                                                            <p className="text-slate-600 text-xs line-clamp-2 leading-relaxed">{auc.description}</p>
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                                                        <div>
+                                                            <span className="text-[10px] text-slate-500 block uppercase font-semibold">Aktuální cena</span>
+                                                            <span className="text-xl font-black text-emerald-600">{currentPrice.toLocaleString()} Kč</span>
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => {
+                                                                if (isAdmin) alert('Jste přihlášeni jako Admin. Pro účast se odhlaste a přihlaste jako běžný účastník.');
+                                                                else if (!user) setView('register');
+                                                                else { setSelectedAuctionId(auc.id); setView('auction'); }
+                                                            }}
+                                                            className="bg-blue-600 hover:bg-blue-500 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition shadow"
+                                                        >
+                                                            Vstoupit →
+                                                        </button>
+                                                    </div>
                                                 </div>
-                                                <div className="p-4 bg-slate-50 border-t flex justify-end">
-                                                    <button onClick={() => { if (!user && !isAdmin) setView('register'); else { setSelectedAuctionId(auc.id); setView('auction'); } }} className="bg-blue-600 text-white text-sm font-bold px-5 py-2.5 rounded-xl shadow hover:bg-blue-500 transition">Vstoupit →</button>
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                )}
                             </div>
                         )}
 
                         {view === 'register' && (
-                            <div className="max-w-md mx-auto bg-white p-6 rounded-2xl shadow-xl space-y-4">
-                                <h2 className="text-2xl font-bold">Registrace účastníka</h2>
-                                <form onSubmit={handleRegister} className="space-y-3">
-                                    <input type="text" required placeholder="Křestní jméno" value={regForm.firstName} onChange={e => setRegForm({...regForm, firstName: e.target.value})} className="w-full border p-3 rounded-xl" />
-                                    <input type="text" required placeholder="Příjmení" value={regForm.lastName} onChange={e => setRegForm({...regForm, lastName: e.target.value})} className="w-full border p-3 rounded-xl" />
-                                    <input type="tel" required placeholder="Telefonní číslo" value={regForm.phone} onChange={e => setRegForm({...regForm, phone: e.target.value})} className="w-full border p-3 rounded-xl" />
-                                    <button type="submit" className="w-full bg-blue-600 text-white font-bold py-3 rounded-xl">Dokončit registraci</button>
-                                </form>
-                                <button onClick={() => setView('home')} className="w-full text-xs text-slate-500 font-semibold text-center mt-2">Zpět na hlavní stranu</button>
+                            <div className="max-w-md mx-auto space-y-4">
+                                <div className="bg-white p-6 md:p-8 rounded-2xl border border-slate-200 shadow-xl">
+                                    <h2 className="text-2xl font-bold text-slate-900 mb-2">Registrace do aukce</h2>
+                                    <p className="text-sm text-slate-600 mb-6 leading-relaxed bg-blue-50 p-4 rounded-xl border border-blue-100">
+                                        <strong className="text-blue-700 block mb-1 text-base font-bold">Důležité upozornění:</strong> 
+                                        Přes tento web neprobíhají žádné platby. Systém slouží výhradně k nalezení zájemce s nejvyšším příhozem.
+                                    </p>
+                                    <form onSubmit={handleRegister} className="space-y-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Křestní jméno</label>
+                                            <input type="text" required value={regForm.firstName} onChange={e => setRegForm({...regForm, firstName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="např. Jan" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Příjmení</label>
+                                            <input type="text" required value={regForm.lastName} onChange={e => setRegForm({...regForm, lastName: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="např. Novák" />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-slate-700 mb-1">Telefonní číslo</label>
+                                            <input type="tel" required value={regForm.phone} onChange={e => setRegForm({...regForm, phone: e.target.value})} className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-slate-900 text-sm focus:outline-none focus:border-blue-600 focus:bg-white" placeholder="+420 123 456 789" />
+                                        </div>
+                                        <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-bold py-3.5 rounded-xl transition shadow-md mt-2">Dokončit registraci a vstoupit</button>
+                                    </form>
+                                    <button onClick={() => setView('home')} className="w-full mt-3 text-sm text-slate-500 hover:text-slate-800 font-medium text-center">Zpět na přehled aukcí</button>
+                                </div>
                             </div>
                         )}
 
@@ -405,9 +509,9 @@
                                     </div>
                                 </div>
 
-                                {/* MODERNÍ PROFESIONÁLNÍ ROZHRANÍ PRO PŘÍHOZ */}
+                                {/* PROFESIONÁLNÍ KRUHOVÝ POSUVNÍK (DIAL/SLIDER) KOLEM KOLEČKA */}
                                 <div className={`p-6 rounded-2xl border transition-all shadow-inner space-y-6 text-center ${
-                                    isUserWinning(currentAuction) ? 'bg-emerald-50/70 border-emerald-300' : 'bg-slate-100 border-slate-200'
+                                    isUserWinning(currentAuction) ? 'bg-emerald-50/70 border-emerald-300' : 'bg-rose-50/70 border-rose-300'
                                 }`}>
                                     <div>
                                         {isUserWinning(currentAuction) ? (
@@ -416,33 +520,33 @@
                                             </span>
                                         ) : (
                                             <span className="inline-block bg-rose-600 text-white text-xs font-black uppercase px-3 py-1 rounded-full shadow">
-                                                ▲ Někdo te přebil – přihod víc!
+                                                ▲ Někdo tě přebil – přihod víc!
                                             </span>
                                         )}
                                     </div>
 
-                                    {/* Kruhové/posuvné rozhraní (Dial / Slider) */}
-                                    <div className="flex flex-col items-center space-y-3">
-                                        <div className="w-48 h-48 rounded-full border-8 border-white bg-gradient-to-tr from-blue-700 to-indigo-600 shadow-xl flex flex-col items-center justify-center text-white relative select-none">
-                                            <span className="text-[10px] uppercase font-bold tracking-widest text-blue-200">Tvůj příhoz</span>
-                                            <span className="text-2xl font-black">{calculatedBidAmount.toLocaleString()}</span>
-                                            <span className="text-[10px] text-blue-200">Kč</span>
-                                        </div>
-
-                                        <div className="w-full max-w-xs space-y-1">
-                                            <div className="flex justify-between text-xs text-slate-500 font-semibold">
-                                                <span>Min (+0 Kč)</span>
-                                                <span>Max (+50 000 Kč)</span>
+                                    <div className="flex flex-col items-center space-y-4">
+                                        {/* Kruhové kolečko s aktuální částkou uvnitř a posuvníkem kolem */}
+                                        <div className="relative w-52 h-52 flex items-center justify-center">
+                                            {/* Kruhový obvod/posuvník */}
+                                            <div className="absolute inset-0 rounded-full border-4 border-slate-200 flex items-center justify-center">
+                                                <input 
+                                                    type="range" 
+                                                    min="0" 
+                                                    max="500" 
+                                                    value={bidSliderOffset} 
+                                                    onChange={e => setBidSliderOffset(e.target.value)} 
+                                                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-20"
+                                                />
                                             </div>
-                                            <input 
-                                                type="range" 
-                                                min="0" 
-                                                max="500" 
-                                                value={bidSliderOffset} 
-                                                onChange={e => setBidSliderOffset(e.target.value)} 
-                                                className="w-full accent-blue-600 cursor-pointer h-2 bg-slate-300 rounded-lg" 
-                                            />
+                                            {/* Vnitřní designové kolečko */}
+                                            <div className="w-40 h-40 rounded-full bg-white shadow-lg border-4 border-blue-600 flex flex-col items-center justify-center text-slate-900 z-10">
+                                                <span className="text-[10px] uppercase font-bold tracking-widest text-slate-400">Tvůj příhoz</span>
+                                                <span className="text-2xl font-black text-blue-600">{calculatedBidAmount.toLocaleString()}</span>
+                                                <span className="text-[10px] text-slate-500 font-semibold">Kč</span>
+                                            </div>
                                         </div>
+                                        <span className="text-xs text-slate-500">Posuň tažením pro rychlé navýšení (+0 až +50 000 Kč)</span>
                                     </div>
 
                                     {/* Ruční přepsání částky */}
@@ -471,15 +575,14 @@
                                         </button>
                                     </div>
 
-                                    {/* Hlavní potvrzovací posuvné/kruhové tlačítko */}
                                     <button 
                                         onClick={() => {
                                             setPendingBid(calculatedBidAmount);
                                             setShowConfirmModal(true);
                                         }}
-                                        className="w-full max-w-sm bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg py-4 rounded-2xl shadow-xl transition transform active:scale-95 flex items-center justify-center gap-2"
+                                        className="w-full max-w-sm bg-emerald-600 hover:bg-emerald-500 text-white font-black text-lg py-4 rounded-2xl shadow-xl transition transform active:scale-95"
                                     >
-                                        <span>Potvrdit příhoz {calculatedBidAmount.toLocaleString()} Kč</span>
+                                        Potvrdit příhoz {calculatedBidAmount.toLocaleString()} Kč
                                     </button>
                                 </div>
 
@@ -510,10 +613,46 @@
                                             <button onClick={() => setSelectedAdminAuction(null)} className="text-xs text-slate-500">Zpět</button>
                                         </div>
                                         <form onSubmit={handleCreateAuction} className="space-y-3">
-                                            <input type="text" placeholder="Nadpis" value={newAuction.title} onChange={e => setNewAuction({...newAuction, title: e.target.value})} className="w-full border p-2 rounded" />
+                                            <input type="text" placeholder="Nadpis (např. Hlavní trh)" value={newAuction.title} onChange={e => setNewAuction({...newAuction, title: e.target.value})} className="w-full border p-2 rounded" />
                                             <input type="text" placeholder="Název produktu" value={newAuction.productName} onChange={e => setNewAuction({...newAuction, productName: e.target.value})} className="w-full border p-2 rounded" />
+                                            <textarea placeholder="Popis..." value={newAuction.description} onChange={e => setNewAuction({...newAuction, description: e.target.value})} className="w-full border p-2 rounded" rows="3" />
+                                            <div>
+                                                <label className="block text-xs font-bold text-slate-700 mb-1">Fotografie</label>
+                                                <input type="file" accept="image/*" onChange={e => handleImageUpload(e, false)} className="w-full text-xs" />
+                                            </div>
                                             <input type="number" placeholder="Vyvolávací cena" value={newAuction.startPrice} onChange={e => setNewAuction({...newAuction, startPrice: e.target.value})} className="w-full border p-2 rounded" />
                                             <button type="submit" className="bg-blue-600 text-white font-bold px-4 py-2 rounded">Vytvořit</button>
+                                        </form>
+                                    </div>
+                                ) : editingAuctionId ? (
+                                    /* FORMULÁŘ PRO ÚPRAVU JIŽ EXISTUJÍCÍ AUKCE */
+                                    <div className="bg-white p-6 rounded-2xl shadow space-y-4">
+                                        <div className="flex justify-between items-center">
+                                            <h2 className="text-lg font-bold text-indigo-600">Upravit probíhající aukci</h2>
+                                            <button onClick={() => setEditingAuctionId(null)} className="text-xs text-slate-500">Zrušit</button>
+                                        </div>
+                                        <form onSubmit={handleSaveEditAuction} className="space-y-3">
+                                            <div>
+                                                <label className="block text-xs font-bold">Nadpis / Štítek</label>
+                                                <input type="text" value={editForm.title} onChange={e => setEditForm({...editForm, title: e.target.value})} className="w-full border p-2 rounded text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold">Název produktu</label>
+                                                <input type="text" value={editForm.productName} onChange={e => setEditForm({...editForm, productName: e.target.value})} className="w-full border p-2 rounded text-sm" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold">Popis</label>
+                                                <textarea value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} className="w-full border p-2 rounded text-sm" rows="3" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold">Změnit fotografii</label>
+                                                <input type="file" accept="image/*" onChange={e => handleImageUpload(e, true)} className="w-full text-xs" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold">Vyvolávací cena (Kč)</label>
+                                                <input type="number" value={editForm.startPrice} onChange={e => setEditForm({...editForm, startPrice: e.target.value})} className="w-full border p-2 rounded text-sm" />
+                                            </div>
+                                            <button type="submit" className="w-full bg-indigo-600 text-white font-bold py-2 rounded-xl">Uložit změny</button>
                                         </form>
                                     </div>
                                 ) : selectedAdminAuction && typeof selectedAdminAuction === 'object' ? (
@@ -562,7 +701,8 @@
                                                         <h3 className="font-bold text-slate-900">{auc.productName}</h3>
                                                         <span className="text-xs text-slate-500">Cena: <strong className="text-emerald-600">{getCurrentHighest(auc).toLocaleString()} Kč</strong> ({auc.bids.length} příhozů)</span>
                                                     </div>
-                                                    <div className="flex gap-2">
+                                                    <div className="flex gap-2 flex-wrap justify-end">
+                                                        <button onClick={() => { setEditingAuctionId(auc.id); setEditForm({ title: auc.title, productName: auc.productName, description: auc.description, imageUrl: auc.imageUrl, startPrice: auc.startPrice }); }} className="bg-indigo-600 text-white text-xs font-bold px-3 py-2 rounded-xl">Upravit</button>
                                                         <button onClick={() => setSelectedAdminAuction(auc)} className="bg-slate-900 text-white text-xs font-bold px-3 py-2 rounded-xl">Detail & Kontakty</button>
                                                         {!auc.forceEnded && !auc.isDraft && (
                                                             <button onClick={() => handleEndAuctionEarly(auc.id)} className="bg-amber-600 text-white text-xs font-bold px-3 py-2 rounded-xl">Ukončit</button>
