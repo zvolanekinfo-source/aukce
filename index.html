@@ -55,9 +55,9 @@
 
             const [auctions, setAuctions] = React.useState([]);
             const [participants, setParticipants] = React.useState([]);
-
-            // Sledování živých přítomností (live presence pro každou aukci)
             const [activeViewers, setActiveViewers] = React.useState({});
+
+            const [clientSessionId] = React.useState(() => 'client_' + Math.random().toString(36).substring(2, 9));
 
             const fetchData = async () => {
                 try {
@@ -98,7 +98,6 @@
                 }
             };
 
-            // Globální listenery pro databázi aukcí a účastníků
             React.useEffect(() => {
                 fetchData();
 
@@ -112,7 +111,6 @@
                 };
             }, []);
 
-            // Globální sledování přítomnosti pro VŠECHNY aktivní aukce najednou, aby hlavní stránka viděla počty v reálném čase
             React.useEffect(() => {
                 if (auctions.length === 0) return;
 
@@ -120,8 +118,7 @@
                     const ch = supabase.channel(`room_global_${auc.id}`);
                     ch.on('presence', { event: 'sync' }, () => {
                         const state = ch.presenceState();
-                        const count = Object.keys(state).length;
-                        setActiveViewers(prev => ({ ...prev, [auc.id]: count }));
+                        setActiveViewers(prev => ({ ...prev, [auc.id]: Object.keys(state).length }));
                     }).subscribe();
                     return ch;
                 });
@@ -131,25 +128,23 @@
                 };
             }, [auctions.length]);
 
-            // Lokální přítomnost uživatele v detailu právě otevřené aukce
             React.useEffect(() => {
                 if (view !== 'auction' || !selectedAuctionId) return;
 
-                const userKey = user ? user.phone : (isAdmin ? 'Admin_' + Math.random() : 'Guest_' + Math.random());
                 const presenceChannel = supabase.channel(`room_global_${selectedAuctionId}`, {
-                    config: { presence: { key: userKey } }
+                    config: { presence: { key: clientSessionId } }
                 });
 
                 presenceChannel.subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
-                        await presenceChannel.track({ online_at: new Date().toISOString() });
+                        await presenceChannel.track({ online_at: new Date().toISOString(), user: user ? user.phone : 'guest' });
                     }
                 });
 
                 return () => {
                     supabase.removeChannel(presenceChannel);
                 };
-            }, [view, selectedAuctionId, user, isAdmin]);
+            }, [view, selectedAuctionId, user, clientSessionId]);
 
             const today = new Date();
             const tomorrow = new Date(Date.now() + 86400000);
