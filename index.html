@@ -702,7 +702,8 @@
                                             return (
                                                 <div key={auc.id} className={`bg-white rounded-2xl border overflow-hidden shadow-md flex flex-col justify-between transition ${winningThis ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:border-blue-300'}`}>
                                                     <div>
-                                                        <div className="h-36 md:h-56 relative bg-white flex items-center justify-center p-2 border-b border-slate-100">
+                                                        {/* Menší výška na mobilu (h-32), aby zbylo místo na text a peek */}
+                                                        <div className="h-32 md:h-52 relative bg-white flex items-center justify-center p-2 border-b border-slate-100">
                                                             {mainImg ? (
                                                                 <img src={mainImg} alt={auc.productName} className="w-full h-full object-contain" />
                                                             ) : (
@@ -726,19 +727,19 @@
                                                                 </span>
                                                                 
                                                                 {status === 'active' && (
-                                                                    <span className="bg-white/90 backdrop-blur text-slate-800 text-[10px] font-bold px-2.5 py-1 rounded-md shadow flex items-center gap-1 border border-slate-200">
+                                                                    <span className="bg-white/90 backdrop-blur text-slate-800 text-[10px] font-bold px-2 py-1 rounded-md shadow flex items-center gap-1 border border-slate-200">
                                                                         <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                                                                         Končí za: {getDetailedTimeLeft(new Date(auc.endTime).getTime())}
                                                                     </span>
                                                                 )}
                                                             </div>
                                                         </div>
-                                                        <div className="p-4 md:p-5 space-y-2">
+                                                        <div className="p-3 md:p-5 space-y-2">
                                                             <span className="text-[11px] md:text-xs text-blue-600 font-bold uppercase tracking-wide">{auc.title}</span>
                                                             <h3 className="text-base md:text-lg font-bold text-slate-900">{auc.productName}</h3>
                                                             <p className="text-slate-600 text-[11px] md:text-xs line-clamp-2 leading-relaxed">{auc.description}</p>
                                                             
-                                                            {/* Zobrazení časů spuštění / konce na náhledu */}
+                                                            {/* Časy spuštění / konce viditelné na náhledu */}
                                                             <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl text-[11px] text-slate-600 space-y-0.5">
                                                                 {status === 'scheduled' && (
                                                                     <div><strong className="text-slate-800">Spuštění od:</strong> {startTimeFormatted}</div>
@@ -758,7 +759,7 @@
                                                         </div>
                                                     </div>
 
-                                                    <div className="p-3.5 md:p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
+                                                    <div className="p-3 md:p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                                                         <div>
                                                             <span className="text-[10px] text-slate-500 block uppercase font-semibold">{priceLabelText}</span>
                                                             <span className="text-lg md:text-xl font-black text-emerald-600">{currentPrice.toLocaleString()} Kč</span>
@@ -1047,27 +1048,35 @@
                                                     <input type="text" value={editForm.priceLabel} onChange={e => setEditForm({...editForm, priceLabel: e.target.value})} className="w-full border p-2.5 rounded-xl" placeholder="Aktuální cena" />
                                                 </div>
 
-                                                <div>
-                                                    <label className="block font-bold mb-1">Fotografie (lze vybrat více naráz)</label>
+                                                {/* Vylepšená správa fotografií pod sebou */}
+                                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                                                    <label className="block font-bold text-slate-900">Fotografie produktu (lze nahrát více naráz)</label>
+                                                    
                                                     {editForm.imageUrls && editForm.imageUrls.length > 0 ? (
-                                                        <div className="grid grid-cols-4 gap-2 my-2">
+                                                        <div className="space-y-2">
                                                             {editForm.imageUrls.map((url, idx) => (
-                                                                <div key={idx} className="relative h-20 bg-slate-50 border rounded-xl flex items-center justify-center p-1">
-                                                                    <img src={url} alt="" className="max-h-full object-contain" />
+                                                                <div key={idx} className="flex items-center justify-between bg-white p-2 border rounded-xl shadow-sm">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="font-bold text-slate-400 text-xs w-6 text-center">#{idx + 1}</span>
+                                                                        <img src={url} alt="" className="w-14 h-14 object-contain bg-slate-50 border rounded-lg p-1" />
+                                                                    </div>
                                                                     <button 
                                                                         type="button" 
                                                                         onClick={() => handleRemoveImage(idx, true)}
-                                                                        className="absolute -top-2 -right-2 bg-red-600 text-white w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center shadow"
+                                                                        className="bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold px-3 py-1.5 rounded-lg transition"
                                                                     >
-                                                                        ✕
+                                                                        Smazat fotku
                                                                     </button>
                                                                 </div>
                                                             ))}
                                                         </div>
                                                     ) : (
-                                                        <p className="text-slate-400 italic mb-2">Zatím nejsou nahrány žádné fotky.</p>
+                                                        <p className="text-slate-400 italic">Zatím nejsou nahrány žádné fotky.</p>
                                                     )}
-                                                    <input type="file" accept="image/*" multiple onChange={e => handleMultipleImagesUpload(e, true)} className="w-full mt-1" />
+
+                                                    <div className="pt-2">
+                                                        <input type="file" accept="image/*" multiple onChange={e => handleMultipleImagesUpload(e, true)} className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
+                                                    </div>
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-2">
@@ -1132,25 +1141,36 @@
                                                     <label className="block font-bold mb-1">Popisek ceny (např. "Aktuální cena", "Pevná cena", atd.)</label>
                                                     <input type="text" value={newAuction.priceLabel} onChange={e => setNewAuction({...newAuction, priceLabel: e.target.value})} className="w-full border p-2.5 rounded-xl" placeholder="Aktuální cena" />
                                                 </div>
-                                                <div>
-                                                    <label className="block font-bold mb-1">Fotografie (lze vybrat více naráz)</label>
-                                                    {newAuction.imageUrls && newAuction.imageUrls.length > 0 && (
-                                                        <div className="grid grid-cols-4 gap-2 my-2">
+
+                                                {/* Vylepšená správa fotografií pod sebou pro novou aukci */}
+                                                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                                                    <label className="block font-bold text-slate-900">Fotografie produktu (lze nahrát více naráz)</label>
+                                                    
+                                                    {newAuction.imageUrls && newAuction.imageUrls.length > 0 ? (
+                                                        <div className="space-y-2">
                                                             {newAuction.imageUrls.map((url, idx) => (
-                                                                <div key={idx} className="relative h-20 bg-slate-50 border rounded-xl flex items-center justify-center p-1">
-                                                                    <img src={url} alt="" className="max-h-full object-contain" />
+                                                                <div key={idx} className="flex items-center justify-between bg-white p-2 border rounded-xl shadow-sm">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <span className="font-bold text-slate-400 text-xs w-6 text-center">#{idx + 1}</span>
+                                                                        <img src={url} alt="" className="w-14 h-14 object-contain bg-slate-50 border rounded-lg p-1" />
+                                                                    </div>
                                                                     <button 
                                                                         type="button" 
                                                                         onClick={() => handleRemoveImage(idx, false)}
-                                                                        className="absolute -top-2 -right-2 bg-red-600 text-white w-5 h-5 rounded-full text-xs font-bold flex items-center justify-center shadow"
+                                                                        className="bg-red-100 hover:bg-red-200 text-red-800 text-xs font-bold px-3 py-1.5 rounded-lg transition"
                                                                     >
-                                                                        ✕
+                                                                        Smazat fotku
                                                                     </button>
                                                                 </div>
                                                             ))}
                                                         </div>
+                                                    ) : (
+                                                        <p className="text-slate-400 italic">Zatím nejsou nahrány žádné fotky.</p>
                                                     )}
-                                                    <input type="file" accept="image/*" multiple onChange={e => handleMultipleImagesUpload(e, false)} className="w-full mt-1" />
+
+                                                    <div className="pt-2">
+                                                        <input type="file" accept="image/*" multiple onChange={e => handleMultipleImagesUpload(e, false)} className="w-full text-xs file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-bold file:bg-blue-600 file:text-white hover:file:bg-blue-700 cursor-pointer" />
+                                                    </div>
                                                 </div>
 
                                                 <div className="grid grid-cols-2 gap-2">
@@ -1380,7 +1400,7 @@
                     </div>
 
                     {showConfirmModal && (
-                        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+                        <div className="fixed instances-center inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
                             <div className="bg-white p-6 rounded-2xl max-w-sm w-full text-center shadow-2xl animate-in zoom-in-95 duration-200">
                                 <h3 className="font-bold text-slate-900 text-lg mb-1">
                                     Potvrdit navýšení o {(pendingBid - currentHighestPrice).toLocaleString()} Kč?
