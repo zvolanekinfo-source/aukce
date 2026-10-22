@@ -507,7 +507,7 @@
                 const h = Math.floor((diff / (1000 * 60 * 60)) % 24);
                 const m = Math.floor((diff / 1000 / 60) % 60);
                 const s = Math.floor((diff / 1000) % 60);
-                return `${d > 0 ? d + ' dny ' : ''}${h} hod ${m} min ${s} s`;
+                return `${d > 0 ? d + ' dny ' : ''}${h}h ${m}m ${s}s`;
             };
 
             const confirmBid = async () => {
@@ -725,12 +725,15 @@
                                                                     {status === 'active' ? 'Probíhá' : status === 'scheduled' ? 'Připravuje se' : 'Skončila'}
                                                                 </span>
                                                                 
-                                                                {status === 'active' && (
-                                                                    <span className="bg-white/90 backdrop-blur text-slate-800 text-[10px] font-bold px-2.5 py-1 rounded-md shadow flex items-center gap-1 border border-slate-200">
-                                                                        <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                                                                        Končí za: {getDetailedTimeLeft(new Date(auc.endTime).getTime())}
-                                                                    </span>
-                                                                )}
+                                                                {/* Fixovaná výška kontejneru pro odpočet, aby nic neskákalo */}
+                                                                <div className="h-6 flex items-center">
+                                                                    {status === 'active' && (
+                                                                        <span className="bg-white/90 backdrop-blur text-slate-800 text-[10px] font-bold px-2.5 py-1 rounded-md shadow flex items-center gap-1 border border-slate-200">
+                                                                            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse shrink-0"></span>
+                                                                            <span className="whitespace-nowrap">Končí za: {getDetailedTimeLeft(new Date(auc.endTime).getTime())}</span>
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
                                                         </div>
                                                         <div className="p-3 md:p-5 space-y-2">
@@ -738,7 +741,6 @@
                                                             <h3 className="text-base md:text-lg font-bold text-slate-900">{auc.productName}</h3>
                                                             <p className="text-slate-600 text-[11px] md:text-xs line-clamp-2 leading-relaxed">{auc.description}</p>
                                                             
-                                                            {/* Vždy viditelný čas spuštění a konce na náhledu */}
                                                             <div className="bg-slate-50 border border-slate-100 p-2 rounded-xl text-[11px] text-slate-600 space-y-0.5">
                                                                 <div><strong className="text-slate-800">Začátek:</strong> {startTimeFormatted}</div>
                                                                 <div><strong className="text-slate-800">Konec do:</strong> {endTimeFormatted}</div>
@@ -753,8 +755,17 @@
 
                                                     <div className="p-3 md:p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                                                         <div>
-                                                            <span className="text-[10px] text-slate-500 block uppercase font-semibold">{priceLabelText}</span>
-                                                            <span className="text-lg md:text-xl font-black text-emerald-600">{currentPrice.toLocaleString()} Kč</span>
+                                                            {status === 'scheduled' ? (
+                                                                <>
+                                                                    <span className="text-[10px] text-slate-500 block uppercase font-semibold">Vyvolávací cena</span>
+                                                                    <span className="text-lg md:text-xl font-black text-slate-700">{auc.startPrice.toLocaleString()} Kč</span>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <span className="text-[10px] text-slate-500 block uppercase font-semibold">{priceLabelText}</span>
+                                                                    <span className="text-lg md:text-xl font-black text-emerald-600">{currentPrice.toLocaleString()} Kč</span>
+                                                                </>
+                                                            )}
                                                         </div>
                                                         <button 
                                                             onClick={() => {
@@ -832,7 +843,6 @@
                                         <h1 className="text-xl md:text-2xl font-black text-slate-900">{currentAuction.productName}</h1>
                                         <p className="text-xs text-slate-600 leading-relaxed">{currentAuction.description}</p>
                                         
-                                        {/* Přehledné časy i v detailu aukce */}
                                         <div className="bg-slate-50 border border-slate-100 p-2.5 rounded-xl text-xs text-slate-700 space-y-1">
                                             <div><strong className="text-slate-900">Začátek aukce:</strong> {new Date(currentAuction.startTime).toLocaleString('cs-CZ')}</div>
                                             <div><strong className="text-slate-900">Konec aukce:</strong> {new Date(currentAuction.endTime).toLocaleString('cs-CZ')}</div>
@@ -884,26 +894,37 @@
                                 </div>
 
                                 <div className="bg-slate-50 p-3 rounded-xl border text-center space-y-1">
-                                    <span className="text-[10px] text-slate-500 block uppercase font-semibold">{currentAuction.priceLabel || 'Aktuální cena'}</span>
-                                    {isUserWinning(currentAuction) && !isAdmin ? (
-                                        <span className="text-emerald-600 text-xs font-black uppercase tracking-wide block">
-                                            {isEnded ? '✓ VÝHERNÍ NABÍDKA' : '✓ VEDETE S NABÍDKOU'}
-                                        </span>
+                                    {isScheduled ? (
+                                        <>
+                                            <span className="text-[10px] text-slate-500 block uppercase font-semibold">Vyvolávací cena</span>
+                                            <div className="text-2xl md:text-3xl font-black text-slate-700">
+                                                {currentAuction.startPrice.toLocaleString()} <span className="text-base text-slate-500">Kč</span>
+                                            </div>
+                                        </>
                                     ) : (
-                                        <span className="text-slate-700 text-xs font-bold block">
-                                            Vyhrává nabídka: 
-                                            <strong className="text-slate-900 font-black ml-1">
-                                                {getHighestBidder(currentAuction) ? (
-                                                    isAdmin 
-                                                    ? `${getHighestBidder(currentAuction).firstName} ${getHighestBidder(currentAuction).lastName} (${getHighestBidder(currentAuction).phone})`
-                                                    : getHighestBidder(currentAuction).firstName
-                                                ) : 'Vyvolávací'}
-                                            </strong>
-                                        </span>
+                                        <>
+                                            <span className="text-[10px] text-slate-500 block uppercase font-semibold">{currentAuction.priceLabel || 'Aktuální cena'}</span>
+                                            {isUserWinning(currentAuction) && !isAdmin ? (
+                                                <span className="text-emerald-600 text-xs font-black uppercase tracking-wide block">
+                                                    {isEnded ? '✓ VÝHERNÍ NABÍDKA' : '✓ VEDETE S NABÍDKOU'}
+                                                </span>
+                                            ) : (
+                                                <span className="text-slate-700 text-xs font-bold block">
+                                                    Vyhrává nabídka: 
+                                                    <strong className="text-slate-900 font-black ml-1">
+                                                        {getHighestBidder(currentAuction) ? (
+                                                            isAdmin 
+                                                            ? `${getHighestBidder(currentAuction).firstName} ${getHighestBidder(currentAuction).lastName} (${getHighestBidder(currentAuction).phone})`
+                                                            : getHighestBidder(currentAuction).firstName
+                                                        ) : 'Vyvolávací'}
+                                                    </strong>
+                                                </span>
+                                            )}
+                                            <div className="text-2xl md:text-3xl font-black text-slate-900">
+                                                {currentHighestPrice.toLocaleString()} <span className="text-base text-slate-500">Kč</span>
+                                            </div>
+                                        </>
                                     )}
-                                    <div className="text-2xl md:text-3xl font-black text-slate-900">
-                                        {currentHighestPrice.toLocaleString()} <span className="text-base text-slate-500">Kč</span>
-                                    </div>
                                 </div>
 
                                 {isEnded ? (
