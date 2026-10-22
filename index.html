@@ -124,7 +124,7 @@
                         setView('home');
                         setSelectedAuctionId(null);
                     } else if (myRecord.blocked) {
-                        alert('Váš účet byl zablokován administrátorem z důvodu porušení pravidel. Byli jste odhlášeni.');
+                        alert('Váš účet byl zablokován administrátorem z důvodu porušení pravidel. Byli jste odhlášen.');
                         setUser(null);
                         setView('home');
                         setSelectedAuctionId(null);
@@ -670,11 +670,14 @@
                     <main className="flex-1 max-w-4xl w-full mx-auto p-3 md:p-6">
                         {view === 'home' && !selectedAuctionId && (
                             <div className="space-y-4">
-                                {/* Zmenšený a kompaktnější horní uvítací banner na mobilu */}
-                                <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3.5 md:p-6 rounded-2xl shadow-md">
-                                    <h1 className="text-lg md:text-2xl font-black mb-1">Vítejte na aukci iPhone Duo</h1>
-                                    <p className="text-blue-100 text-[11px] md:text-sm leading-snug">
-                                        Stránka pro urychlení a zjednodušení předobjednávek iPhonu. Přihlaste se svým jménem a telefonním číslem pro účast v aukci.
+                                {/* Původní plný text v modrém banneru */}
+                                <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3.5 md:p-8 rounded-2xl shadow-lg">
+                                    <h1 className="text-lg md:text-3xl font-black mb-1.5 md:mb-2">Vítejte na aukci iPhone Duo</h1>
+                                    <p className="text-blue-100 text-[11px] md:text-sm leading-relaxed">
+                                        Tuto stránku jsem vytvořil, abych urychlil a zjednodušil hledání zájemců o předobjednávku iPhonu.
+                                    </p>
+                                    <p className="text-blue-100 text-[11px] md:text-sm leading-relaxed mt-2 md:mt-3">
+                                        Máte-li zájem o předobjednávku, přihlaste se prosím svým jménem a telefonním číslem, abych vás / výherce aukce mohl kontaktovat. Děkuji a těším se na vás!
                                     </p>
                                 </div>
 
@@ -700,7 +703,6 @@
                                             return (
                                                 <div key={auc.id} className={`bg-white rounded-2xl border overflow-hidden shadow-md flex flex-col justify-between transition ${winningThis ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:border-blue-300'}`}>
                                                     <div>
-                                                        {/* Ještě kompaktnější výška obrázku (h-28 na mobilu), aby se karta zkrátila a dříve vykoukla další */}
                                                         <div className="h-28 md:h-48 relative bg-white flex items-center justify-center p-2 border-b border-slate-100">
                                                             {mainImg ? (
                                                                 <img src={mainImg} alt={auc.productName} className="w-full h-full object-contain" />
