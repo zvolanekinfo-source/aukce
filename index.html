@@ -64,10 +64,10 @@
 
             const fetchData = async () => {
                 try {
-                    const { data: aucData, error: aucErr } = await supabase.from('auctions').select('*');
+                    const { data: aucData, error: aucErr } = await supabase.from('auctions').select('*').order('display_order', { ascending: true });
                     if (aucErr) console.error("Chyba aukcí:", aucErr);
                     if (aucData) {
-                        const formattedAuctions = aucData.map(a => {
+                        const formattedAuctions = aucData.map((a, index) => {
                             let images = [];
                             if (a.image_urls && Array.isArray(a.image_urls)) {
                                 images = a.image_urls;
@@ -90,9 +90,12 @@
                                 startTime: a.start_time || a.created_at || new Date().toISOString(),
                                 endTime: a.ends_at || a.end_time || a.endTime || new Date(Date.now() + 86400000).toISOString(),
                                 forceEnded: a.force_ended || (a.status === 'ended'),
+                                displayOrder: a.display_order !== undefined && a.display_order !== null ? a.display_order : index,
                                 bids: a.bids || []
                             };
                         });
+                        // Seřazení podle displayOrder
+                        formattedAuctions.sort((a, b) => a.displayOrder - b.displayOrder);
                         setAuctions(formattedAuctions);
                     }
 
@@ -124,7 +127,7 @@
                         setView('home');
                         setSelectedAuctionId(null);
                     } else if (myRecord.blocked) {
-                        alert('Váš účet byl zablokován administrátorem z důvodu porušení pravidel. Byli jste odhlášen.');
+                        alert('Váš účet byl zablokován administrátorem z důvodu porušení pravidel. Byli jste odhlášeni.');
                         setUser(null);
                         setView('home');
                         setSelectedAuctionId(null);
@@ -368,6 +371,7 @@
                     start_time: new Date(startStr).toISOString(),
                     ends_at: new Date(endStr).toISOString(),
                     status: 'active',
+                    display_order: auctions.length,
                     bids: []
                 };
 
@@ -422,6 +426,23 @@
                     await fetchData();
                     if (selectedAdminAuction && selectedAdminAuction.id === aucId) setSelectedAdminAuction(null);
                 }
+            };
+
+            const handleMoveAuctionOrder = async (index, direction) => {
+                const targetIndex = direction === 'up' ? index - 1 : index + 1;
+                if (targetIndex < 0 || targetIndex >= auctions.length) return;
+
+                const newAuctions = [...auctions];
+                const temp = newAuctions[index];
+                newAuctions[index] = newAuctions[targetIndex];
+                newAuctions[targetIndex] = temp;
+
+                // Uložení nového pořadí do Supabase pro každou aukci
+                for (let i = 0; i < newAuctions.length; i++) {
+                    await supabase.from('auctions').update({ display_order: i }).eq('id', newAuctions[i].id);
+                }
+
+                await fetchData();
             };
 
             const handleDuplicateAuction = (auc) => {
@@ -670,7 +691,6 @@
                     <main className="flex-1 max-w-4xl w-full mx-auto p-3 md:p-6">
                         {view === 'home' && !selectedAuctionId && (
                             <div className="space-y-4">
-                                {/* Původní plný text v modrém banneru */}
                                 <div className="bg-gradient-to-r from-blue-600 to-blue-700 text-white p-3.5 md:p-8 rounded-2xl shadow-lg">
                                     <h1 className="text-lg md:text-3xl font-black mb-1.5 md:mb-2">Vítejte na aukci iPhone Duo</h1>
                                     <p className="text-blue-100 text-[11px] md:text-sm leading-relaxed">
@@ -1237,11 +1257,31 @@
                                             </div>
 
                                             <div className="space-y-3">
-                                                {auctions.map(auc => {
+                                                {auctions.map((auc, index) => {
                                                     const thumbImg = auc.imageUrls && auc.imageUrls.length > 0 ? auc.imageUrls[0] : '';
                                                     return (
                                                         <div key={auc.id} className="bg-white border rounded-2xl p-4 flex flex-col md:flex-row justify-between md:items-center shadow-sm gap-4">
                                                             <div className="flex items-center gap-3">
+                                                                {/* Tlačítka pro změnu pořadí nahoru a dolů */}
+                                                                <div className="flex flex-col gap-1 shrink-0">
+                                                                    <button 
+                                                                        onClick={() => handleMoveAuctionOrder(index, 'up')} 
+                                                                        disabled={index === 0}
+                                                                        className={`w-7 h-7 rounded-lg border flex items-center justify-center font-bold text-xs ${index === 0 ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300'}`}
+                                                                        title="Posunout nahoru"
+                                                                    >
+                                                                        ▲
+                                                                    </button>
+                                                                    <button 
+                                                                        onClick={() => handleMoveAuctionOrder(index, 'down')} 
+                                                                        disabled={index === auctions.length - 1}
+                                                                        className={`w-7 h-7 rounded-lg border flex items-center justify-center font-bold text-xs ${index === auctions.length - 1 ? 'bg-slate-100 text-slate-300 border-slate-200 cursor-not-allowed' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border-slate-300'}`}
+                                                                        title="Posunout dolů"
+                                                                    >
+                                                                        ▼
+                                                                    </button>
+                                                                </div>
+
                                                                 {thumbImg ? (
                                                                     <div className="w-12 h-12 bg-slate-50 border rounded-lg flex items-center justify-center p-1 shrink-0">
                                                                         <img src={thumbImg} alt="" className="max-h-full object-contain" />
