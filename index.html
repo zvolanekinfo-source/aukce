@@ -55,8 +55,8 @@
 
             const [auctions, setAuctions] = React.useState([]);
             const [participants, setParticipants] = React.useState([]);
+            const [dataLoaded, setDataLoaded] = React.useState(false); // Sleduje, zda se už načetla data z DB
             
-            // JEDEN sdílený stav pro živé sledování všech uživatelů
             const [presenceCounts, setPresenceCounts] = React.useState({});
             const [clientSessionId] = React.useState(() => 'client_' + Math.random().toString(36).substring(2, 9));
 
@@ -93,13 +93,34 @@
                             blocked: p.blocked || false
                         }));
                         setParticipants(formattedParticipants);
+                        setDataLoaded(true); // Potvrzení, že seznam účastníků je úspěšně v paměti
                     }
                 } catch (err) {
                     console.error("Chyba načítání:", err);
                 }
             };
 
-            // DB Realtime naslouchání (nové příhozy, data)
+            // OKAMŽITÉ ODHLÁŠENÍ PŘI ZABLOKOVÁNÍ NEBO SMAZÁNÍ
+            React.useEffect(() => {
+                if (dataLoaded && user && !isAdmin) {
+                    const myRecord = participants.find(p => p.phone === user.phone);
+                    
+                    if (!myRecord) {
+                        // Účet v databázi už neexistuje (Admin ho smazal)
+                        alert('Váš účet byl odstraněn administrátorem. Byli jste odhlášeni ze systému.');
+                        setUser(null);
+                        setView('home');
+                        setSelectedAuctionId(null);
+                    } else if (myRecord.blocked) {
+                        // Účet dostal flag blocked = true (Admin ho zablokoval)
+                        alert('Váš účet byl zablokován administrátorem z důvodu porušení pravidel. Byli jste odhlášeni.');
+                        setUser(null);
+                        setView('home');
+                        setSelectedAuctionId(null);
+                    }
+                }
+            }, [participants, dataLoaded, user, isAdmin]);
+
             React.useEffect(() => {
                 fetchData();
                 const dbChannel = supabase.channel('db_changes')
@@ -112,7 +133,6 @@
                 };
             }, []);
 
-            // ZCELA NOVÝ PRESENCE SYSTÉM - JEDEN KANÁL PRO VŠECHNY
             React.useEffect(() => {
                 const globalPresenceChannel = supabase.channel('global_live_viewers', {
                     config: { presence: { key: clientSessionId } }
@@ -122,7 +142,6 @@
                     const state = globalPresenceChannel.presenceState();
                     const newCounts = {};
                     
-                    // Projdi všechny online uživatele a sečti, v jaké jsou aukci
                     Object.values(state).forEach(presences => {
                         presences.forEach(p => {
                             if (p.auctionId) {
@@ -147,16 +166,13 @@
                 };
             }, [clientSessionId]);
 
-            // Propisování aktuálního stavu uživatele do Presence kanálu
             React.useEffect(() => {
                 const updateMyPresence = async () => {
                     const channel = window.globalPresenceChannel;
                     if (channel && channel.state === 'joined') {
                         if (view === 'auction' && selectedAuctionId) {
-                            // Jsem v aukci - ohlásím se
                             await channel.track({ auctionId: selectedAuctionId, onlineAt: new Date().toISOString() });
                         } else {
-                            // Nejsem v detailu aukce - resetuji
                             await channel.track({ auctionId: null });
                         }
                     }
@@ -361,7 +377,7 @@
                     alert('Chyba při úpravě: ' + error.message);
                     return;
                 } else if (!data || data.length === 0) {
-                    alert('Aukce se neaktualizovala! Pravděpodobně to blokuje RLS v Supabase. Vypněte RLS u tabulky "auctions".');
+                    alert('Aukce se neaktualizovala! Pravděpodobně to blokuje RLS v Supabase.');
                 }
 
                 await fetchData();
@@ -374,32 +390,27 @@
                     if (error) {
                         alert('Chyba: ' + error.message);
                     } else if (!data || data.length === 0) {
-                        alert('Aukce nebyla smazána! Zkontrolujte, zda nemáte v Supabase zapnuté RLS (Row Level Security). Vypněte ho.');
+                        alert('Aukce nebyla smazána! Zkontrolujte RLS (Row Level Security).');
                     }
                     await fetchData();
                     if (selectedAdminAuction && selectedAdminAuction.id === aucId) setSelectedAdminAuction(null);
                 }
             };
 
-            // OPRAVENÉ MAZÁNÍ ÚČASTNÍKA (BEZ FALŠOVÁNÍ UI A S KONTROLOU RLS)
             const handleDeleteParticipant = async (partId) => {
-                if (confirm('Opravdu chcete nenávratně smazat tohoto účastníka z databáze?')) {
-                    // .select() nám vrátí, co reálně databáze smazala
+                if (confirm('Opravdu chcete nenávratně smazat tohoto účastníka ze systému?')) {
                     const { data, error } = await supabase.from('participants').delete().eq('id', partId).select();
                     
                     if (error) {
                         alert('Chyba při mazání v databázi: ' + error.message);
                     } else if (!data || data.length === 0) {
-                        // Databáze nevrátila chybu, ale smazala 0 řádků -> RLS problém!
-                        alert('Účastník NEBYL smazán! Zasahuje Supabase ochrana. Běžte do Supabase -> Table Editor -> participants a klikněte na "Disable RLS".');
+                        alert('Účastník NEBYL smazán! Zkontrolujte RLS v Supabase.');
                     }
                     
-                    // Vždy znovu načteme skutečný stav DB
                     await fetchData();
                 }
             };
 
-            // OPRAVENÉ BLOKOVÁNÍ / ODBLOKOVÁNÍ ÚČASTNÍKA (BEZ FALŠOVÁNÍ UI A S KONTROLOU RLS)
             const handleToggleBlockParticipant = async (partId, currentBlockedStatus) => {
                 const newStatus = !currentBlockedStatus;
 
@@ -408,7 +419,7 @@
                 if (error) {
                     alert('Chyba při změně blokování: ' + error.message);
                 } else if (!data || data.length === 0) {
-                    alert('Stav blokování NEBYL změněn! Zasahuje Supabase ochrana. Běžte do Supabase -> Table Editor -> participants a klikněte na "Disable RLS".');
+                    alert('Stav blokování NEBYL změněn! Zkontrolujte RLS v Supabase.');
                 }
                 
                 await fetchData();
@@ -426,7 +437,7 @@
                     alert('Chyba při úpravě účastníka: ' + error.message);
                     return;
                 } else if (!data || data.length === 0) {
-                    alert('Úprava nebyla uložena! Zkontrolujte RLS (Row Level Security) v Supabase.');
+                    alert('Úprava nebyla uložena! Zkontrolujte RLS v Supabase.');
                 }
                 
                 setEditingPartId(null);
