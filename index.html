@@ -111,7 +111,7 @@
                 };
             }, []);
 
-            // Okamžité sledování přítomnosti pro všechny aukce na hlavní stránce
+            // Živé sledování přítomnosti pro všechny aukce na hlavní stránce
             React.useEffect(() => {
                 if (auctions.length === 0) return;
 
@@ -129,23 +129,41 @@
                 };
             }, [auctions.length]);
 
-            // Přihlášení do přítomnosti při vstupu do detailu aukce
+            // Vylepšené sledování přítomnosti s podporou pro mobily (aktivní tracking v detailu)
             React.useEffect(() => {
                 if (view !== 'auction' || !selectedAuctionId) return;
 
-                const presenceChannel = supabase.channel(`presence_auc_${selectedAuctionId}`);
+                const presenceChannel = supabase.channel(`presence_auc_${selectedAuctionId}`, {
+                    config: { presence: { key: clientSessionId } }
+                });
 
                 presenceChannel.subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
-                        await presenceChannel.track({ user_id: clientSessionId, online_at: new Date().toISOString() });
+                        await presenceChannel.track({ 
+                            user_id: clientSessionId, 
+                            phone: user ? user.phone : 'guest',
+                            online_at: new Date().toISOString() 
+                        });
                     }
                 });
 
+                // Interval pro udržení aktivního spojení na mobilech
+                const heartbeat = setInterval(async () => {
+                    if (presenceChannel.state === 'joined') {
+                        await presenceChannel.track({ 
+                            user_id: clientSessionId, 
+                            phone: user ? user.phone : 'guest',
+                            online_at: new Date().toISOString() 
+                        });
+                    }
+                }, 5000);
+
                 return () => {
+                    clearInterval(heartbeat);
                     presenceChannel.untrack();
                     supabase.removeChannel(presenceChannel);
                 };
-            }, [view, selectedAuctionId, clientSessionId]);
+            }, [view, selectedAuctionId, clientSessionId, user]);
 
             const today = new Date();
             const tomorrow = new Date(Date.now() + 86400000);
@@ -354,7 +372,6 @@
                 }
             };
 
-            // OPRAVENÉ MAZÁNÍ ÚČASTNÍKA (Jistota smazání bez ohledu na typ klíče)
             const handleDeleteParticipant = async (partId, partPhone) => {
                 if (confirm('Opravdu chcete nenávratně smazat tohoto účastníka z databáze?')) {
                     let { error } = await supabase.from('participants').delete().eq('id', partId);
@@ -369,7 +386,6 @@
                 }
             };
 
-            // OPRAVENÉ BLOKOVÁNÍ / ODBLOKOVÁNÍ ÚČASTNÍKA
             const handleToggleBlockParticipant = async (partId, partPhone, currentBlockedStatus) => {
                 let newStatus = !currentBlockedStatus;
                 let { error } = await supabase.from('participants').update({ blocked: newStatus }).eq('id', partId);
