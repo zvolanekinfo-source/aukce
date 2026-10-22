@@ -463,6 +463,14 @@
             const confirmBid = async () => {
                 if (!currentAuction) return;
 
+                // Kontrola času při odeslání příhozu (pro jistotu, aby nikdo nepředběhl čas)
+                const currentStatus = getAuctionStatus(currentAuction);
+                if (currentStatus !== 'active') {
+                    alert('Do této aukce nyní nelze přihazovat (ještě nezačala nebo již skončila).');
+                    setShowConfirmModal(false);
+                    return;
+                }
+
                 let currentEndTime = new Date(currentAuction.endTime).getTime();
                 if (currentAuction.autoExtendMinutes > 0) {
                     const extensionMs = currentAuction.autoExtendMinutes * 60 * 1000;
@@ -513,6 +521,8 @@
             const currentHighestPrice = currentAuction ? getCurrentHighest(currentAuction) : 0;
             const aucStatus = currentAuction ? getAuctionStatus(currentAuction) : null;
             const isEnded = aucStatus === 'ended';
+            const isScheduled = aucStatus === 'scheduled';
+            const isActive = aucStatus === 'active';
 
             const handleSliderChange = (e) => {
                 setBidAmountInput(e.target.value);
@@ -752,8 +762,8 @@
                                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                                             Právě sleduje účastníků: {getActiveViewersCount(currentAuction.id)}
                                         </span>
-                                        <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${isEnded ? 'bg-slate-200 text-slate-600' : 'bg-emerald-100 text-emerald-800'}`}>
-                                            {isEnded ? 'Aukce ukončena' : `Zbývá: ${getDetailedTimeLeft(new Date(currentAuction.endTime).getTime())}`}
+                                        <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${isEnded ? 'bg-slate-200 text-slate-600' : isScheduled ? 'bg-blue-100 text-blue-800' : 'bg-emerald-100 text-emerald-800'}`}>
+                                            {isEnded ? 'Aukce ukončena' : isScheduled ? `Začíná za: ${getDetailedTimeLeft(new Date(currentAuction.startTime).getTime())}` : `Zbývá: ${getDetailedTimeLeft(new Date(currentAuction.endTime).getTime())}`}
                                         </span>
                                     </div>
                                 </div>
@@ -811,6 +821,14 @@
                                                 <p className="text-slate-600 mt-1 text-sm">Do aukce již nelze přihazovat.</p>
                                             </div>
                                         )}
+                                    </div>
+                                ) : isScheduled ? (
+                                    <div className="bg-blue-50 border border-blue-200 p-6 rounded-2xl text-center space-y-2">
+                                        <div className="text-3xl">⏳</div>
+                                        <h2 className="text-lg font-black text-blue-900">Aukce ještě nezačala</h2>
+                                        <p className="text-xs text-blue-700">
+                                            Spuštění proběhne přesně v nastavený čas: <strong className="font-bold">{new Date(currentAuction.startTime).toLocaleString('cs-CZ')}</strong>
+                                        </p>
                                     </div>
                                 ) : (
                                     <>
