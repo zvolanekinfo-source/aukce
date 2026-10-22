@@ -71,6 +71,7 @@
                             productName: a.product_name || a.productName || 'iPhone',
                             description: a.description || '',
                             imageUrl: a.image_url || a.imageUrl || '',
+                            priceLabel: a.price_label || a.priceLabel || 'Aktuální cena',
                             startPrice: Number(a.starting_price || a.start_price || a.startPrice || 1000),
                             minBidStep: Number(a.min_bid_step || a.minBidStep || 100),
                             autoExtendMinutes: Number(a.auto_extend_minutes || a.autoExtendMinutes || 0),
@@ -189,6 +190,7 @@
                 productName: '',
                 description: '',
                 imageUrl: '',
+                priceLabel: 'Aktuální cena',
                 startPrice: 1000,
                 minBidStep: 100,
                 autoExtendMinutes: 2,
@@ -200,7 +202,7 @@
 
             const [editingAuctionId, setEditingAuctionId] = React.useState(null);
             const [editForm, setEditForm] = React.useState({ 
-                title: '', productName: '', description: '', imageUrl: '', 
+                title: '', productName: '', description: '', imageUrl: '', priceLabel: 'Aktuální cena',
                 startPrice: 1000, minBidStep: 100, autoExtendMinutes: 2,
                 startDate: '', startTime: '', endDate: '', endTime: '' 
             });
@@ -333,6 +335,7 @@
                     product_name: newAuction.productName,
                     description: newAuction.description,
                     image_url: newAuction.imageUrl || '',
+                    price_label: newAuction.priceLabel || 'Aktuální cena',
                     starting_price: Number(newAuction.startPrice),
                     min_bid_step: Number(newAuction.minBidStep) || 100,
                     auto_extend_minutes: Number(newAuction.autoExtendMinutes) || 0,
@@ -362,6 +365,7 @@
                     product_name: editForm.productName,
                     description: editForm.description,
                     image_url: editForm.imageUrl,
+                    price_label: editForm.priceLabel || 'Aktuální cena',
                     starting_price: Number(editForm.startPrice),
                     min_bid_step: Number(editForm.minBidStep),
                     auto_extend_minutes: Number(editForm.autoExtendMinutes),
@@ -402,6 +406,7 @@
                     productName: auc.productName + ' (Kopie)',
                     description: auc.description || '',
                     imageUrl: auc.imageUrl || '',
+                    priceLabel: auc.priceLabel || 'Aktuální cena',
                     startPrice: auc.startPrice || 1000,
                     minBidStep: auc.minBidStep || 100,
                     autoExtendMinutes: auc.autoExtendMinutes || 2,
@@ -664,13 +669,14 @@
                                             const liveCount = getActiveViewersCount(auc.id);
                                             const winningThis = isUserWinning(auc);
                                             const ended = status === 'ended';
+                                            const priceLabelText = auc.priceLabel || 'Aktuální cena';
 
                                             return (
                                                 <div key={auc.id} className={`bg-white rounded-2xl border overflow-hidden shadow-md flex flex-col justify-between transition ${winningThis ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:border-blue-300'}`}>
                                                     <div>
                                                         <div className="h-40 md:h-56 relative bg-white flex items-center justify-center p-2 border-b border-slate-100">
                                                             {auc.imageUrl ? (
-                                                                <img src={auc.imageUrl} alt={auc.productName} className="w-full h-full object-contain drop-shadow-sm" />
+                                                                <img src={auc.imageUrl} alt={auc.productName} className="w-full h-full object-contain" />
                                                             ) : (
                                                                 <span className="text-slate-300 text-xs">Bez fotografie</span>
                                                             )}
@@ -713,7 +719,7 @@
 
                                                     <div className="p-3.5 md:p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-between">
                                                         <div>
-                                                            <span className="text-[10px] text-slate-500 block uppercase font-semibold">Aktuální cena</span>
+                                                            <span className="text-[10px] text-slate-500 block uppercase font-semibold">{priceLabelText}</span>
                                                             <span className="text-lg md:text-xl font-black text-emerald-600">{currentPrice.toLocaleString()} Kč</span>
                                                         </div>
                                                         <button 
@@ -804,6 +810,7 @@
                                 </div>
 
                                 <div className="bg-slate-50 p-3 rounded-xl border text-center space-y-1">
+                                    <span className="text-[10px] text-slate-500 block uppercase font-semibold">{currentAuction.priceLabel || 'Aktuální cena'}</span>
                                     {isUserWinning(currentAuction) && !isAdmin ? (
                                         <span className="text-emerald-600 text-xs font-black uppercase tracking-wide block">
                                             {isEnded ? '✓ VÝHERNÍ NABÍDKA' : '✓ VEDETE S NABÍDKOU'}
@@ -961,6 +968,10 @@
                                                     <textarea value={editForm.description} onChange={e => setEditForm({...editForm, description: e.target.value})} className="w-full border p-2.5 rounded-xl" rows="3" />
                                                 </div>
                                                 <div>
+                                                    <label className="block font-bold mb-1">Popisek ceny (např. "Aktuální cena", "Pevná cena", atd.)</label>
+                                                    <input type="text" value={editForm.priceLabel} onChange={e => setEditForm({...editForm, priceLabel: e.target.value})} className="w-full border p-2.5 rounded-xl" placeholder="Aktuální cena" />
+                                                </div>
+                                                <div>
                                                     <label className="block font-bold mb-1">Nová Fotografie (volitelné)</label>
                                                     <input type="file" accept="image/*" onChange={e => handleImageUpload(e, true)} className="w-full" />
                                                 </div>
@@ -1024,6 +1035,10 @@
                                                     <textarea placeholder="Popis..." value={newAuction.description} onChange={e => setNewAuction({...newAuction, description: e.target.value})} className="w-full border p-2.5 rounded-xl" rows="3" />
                                                 </div>
                                                 <div>
+                                                    <label className="block font-bold mb-1">Popisek ceny (např. "Aktuální cena", "Pevná cena", atd.)</label>
+                                                    <input type="text" value={newAuction.priceLabel} onChange={e => setNewAuction({...newAuction, priceLabel: e.target.value})} className="w-full border p-2.5 rounded-xl" placeholder="Aktuální cena" />
+                                                </div>
+                                                <div>
                                                     <label className="block font-bold mb-1">Fotografie</label>
                                                     <input type="file" accept="image/*" onChange={e => handleImageUpload(e, false)} className="w-full" />
                                                 </div>
@@ -1080,7 +1095,7 @@
                                                         <div>
                                                             <h3 className="font-bold text-slate-900 text-base">{auc.productName}</h3>
                                                             <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 mt-1">
-                                                                <span>Aktuálně: <strong className="text-emerald-600">{getCurrentHighest(auc).toLocaleString()} Kč</strong></span>
+                                                                <span>{auc.priceLabel || 'Aktuální cena'}: <strong className="text-emerald-600">{getCurrentHighest(auc).toLocaleString()} Kč</strong></span>
                                                                 <span className={getAuctionStatus(auc) === 'active' ? 'text-emerald-500 font-bold' : ''}>Status: {getAuctionStatus(auc) === 'active' ? 'Probíhá' : getAuctionStatus(auc) === 'scheduled' ? 'Připravuje se' : 'Skončila'}</span>
                                                             </div>
                                                         </div>
@@ -1101,6 +1116,7 @@
                                                                     productName: auc.productName,
                                                                     description: auc.description,
                                                                     imageUrl: auc.imageUrl,
+                                                                    priceLabel: auc.priceLabel || 'Aktuální cena',
                                                                     startPrice: auc.startPrice,
                                                                     minBidStep: auc.minBidStep,
                                                                     autoExtendMinutes: auc.autoExtendMinutes,
