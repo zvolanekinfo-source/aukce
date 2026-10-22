@@ -112,16 +112,21 @@
                 };
             }, []);
 
-            // Okamžité sledování živé přítomnosti
+            // Živé sledování přítomnosti pro přehled aukcí
             React.useEffect(() => {
                 if (auctions.length === 0) return;
 
                 const channels = auctions.map(auc => {
-                    const ch = supabase.channel(`presence_speed_${auc.id}`);
+                    const ch = supabase.channel(`presence_speed_${auc.id}`, {
+                        config: { presence: { key: clientSessionId } }
+                    });
+                    
                     ch.on('presence', { event: 'sync' }, () => {
                         const state = ch.presenceState();
                         setActiveViewers(prev => ({ ...prev, [auc.id]: Object.keys(state).length }));
-                    }).subscribe();
+                    });
+
+                    ch.subscribe();
                     return ch;
                 });
 
@@ -130,7 +135,7 @@
                 };
             }, [auctions.length]);
 
-            // Aktivní tracking přítomnosti v detailu
+            // Aktivní tracking v detailu aukce (okamžité přičtení)
             React.useEffect(() => {
                 if (view !== 'auction' || !selectedAuctionId) return;
 
@@ -140,7 +145,7 @@
 
                 presenceChannel.subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
-                        await presenceChannel.track({ online_at: new Date().toISOString() });
+                        await presenceChannel.track({ online_at: new Date().toISOString(), user: user ? user.phone : 'guest' });
                     }
                 });
 
@@ -148,7 +153,7 @@
                     presenceChannel.untrack();
                     supabase.removeChannel(presenceChannel);
                 };
-            }, [view, selectedAuctionId, clientSessionId]);
+            }, [view, selectedAuctionId, clientSessionId, user]);
 
             const today = new Date();
             const tomorrow = new Date(Date.now() + 86400000);
@@ -357,32 +362,30 @@
                 }
             };
 
-            // OKAMŽITÉ A SPOLEHLIVÉ MAZÁNÍ ÚČASTNÍKA
-            const handleDeleteParticipant = async (partId, partPhone) => {
+            // OPRAVENÉ MAZÁNÍ ÚČASTNÍKA (okamžitá aktualizace + smazání dle ID)
+            const handleDeleteParticipant = async (partId) => {
                 if (confirm('Opravdu chcete nenávratně smazat tohoto účastníka z databáze?')) {
-                    // Okamžitá optimistická aktualizace stavu v UI pro maximální rychlost
-                    setParticipants(prev => prev.filter(p => p.id !== partId && p.phone !== partPhone));
+                    // Okamžité odstranění z UI pro okamžitou odezvu
+                    setParticipants(prev => prev.filter(p => p.id !== partId));
 
-                    // Provedení příkazu v Supabase (podpora pro id i telefon)
-                    await supabase.from('participants').delete().eq('id', partId);
-                    if (partPhone) {
-                        await supabase.from('participants').delete().eq('phone', partPhone);
+                    const { error } = await supabase.from('participants').delete().eq('id', partId);
+                    if (error) {
+                        alert('Chyba při mazání v databázi: ' + error.message);
                     }
                     await fetchData();
                 }
             };
 
-            // OKAMŽITÉ A SPOLEHLIVÉ BLOKOVÁNÍ / ODBLOKOVÁNÍ ÚČASTNÍKA
-            const handleToggleBlockParticipant = async (partId, partPhone, currentBlockedStatus) => {
+            // OPRAVENÉ BLOKOVÁNÍ / ODBLOKOVÁNÍ ÚČASTNÍKA (okamžitá změna stavu)
+            const handleToggleBlockParticipant = async (partId, currentBlockedStatus) => {
                 const newStatus = !currentBlockedStatus;
 
-                // Okamžitá optimistická aktualizace v UI
-                setParticipants(prev => prev.map(p => (p.id === partId || p.phone === partPhone) ? {...p, blocked: newStatus} : p));
+                // Okamžitá vizuální změna v UI
+                setParticipants(prev => prev.map(p => p.id === partId ? {...p, blocked: newStatus} : p));
 
-                // Uložení do Supabase
-                await supabase.from('participants').update({ blocked: newStatus }).eq('id', partId);
-                if (partPhone) {
-                    await supabase.from('participants').update({ blocked: newStatus }).eq('phone', partPhone);
+                const { error } = await supabase.from('participants').update({ blocked: newStatus }).eq('id', partId);
+                if (error) {
+                    alert('Chyba při změně blokování v databázi: ' + error.message);
                 }
                 await fetchData();
             };
@@ -1078,11 +1081,11 @@
                                                                                 setPartEditForm({ firstName: p.firstName, lastName: p.lastName, phone: p.phone });
                                                                             }} className="text-xs bg-yellow-100 hover:bg-yellow-200 text-yellow-800 px-3 py-2 rounded-xl font-bold transition">Upravit</button>
                                                                             
-                                                                            <button onClick={() => handleToggleBlockParticipant(p.id, p.phone, p.blocked)} className={`text-xs px-3 py-2 rounded-xl font-bold transition ${p.blocked ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800' : 'bg-orange-100 hover:bg-orange-200 text-orange-800'}`}>
+                                                                            <button onClick={() => handleToggleBlockParticipant(p.id, p.blocked)} className={`text-xs px-3 py-2 rounded-xl font-bold transition ${p.blocked ? 'bg-emerald-100 hover:bg-emerald-200 text-emerald-800' : 'bg-orange-100 hover:bg-orange-200 text-orange-800'}`}>
                                                                                 {p.blocked ? 'Odblokovat' : 'Blokovat'}
                                                                             </button>
                                                                             
-                                                                            <button onClick={() => handleDeleteParticipant(p.id, p.phone)} className="text-xs bg-red-100 hover:bg-red-200 text-red-800 px-3 py-2 rounded-xl font-bold transition">Smazat</button>
+                                                                            <button onClick={() => handleDeleteParticipant(p.id)} className="text-xs bg-red-100 hover:bg-red-200 text-red-800 px-3 py-2 rounded-xl font-bold transition">Smazat</button>
                                                                         </div>
                                                                     </>
                                                                 )}
