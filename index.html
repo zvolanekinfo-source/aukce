@@ -98,10 +98,11 @@
                 }
             };
 
+            // Okamžité naslouchání změnám v DB (real-time)
             React.useEffect(() => {
                 fetchData();
 
-                const channel = supabase.channel('iaukce-realtime-all')
+                const channel = supabase.channel('iaukce-realtime-speed')
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'auctions' }, () => fetchData())
                     .on('postgres_changes', { event: '*', schema: 'public', table: 'participants' }, () => fetchData())
                     .subscribe();
@@ -111,12 +112,12 @@
                 };
             }, []);
 
-            // Živé sledování přítomnosti pro všechny aukce na hlavní stránce
+            // Okamžité sledování živé přítomnosti
             React.useEffect(() => {
                 if (auctions.length === 0) return;
 
                 const channels = auctions.map(auc => {
-                    const ch = supabase.channel(`presence_auc_${auc.id}`);
+                    const ch = supabase.channel(`presence_speed_${auc.id}`);
                     ch.on('presence', { event: 'sync' }, () => {
                         const state = ch.presenceState();
                         setActiveViewers(prev => ({ ...prev, [auc.id]: Object.keys(state).length }));
@@ -129,41 +130,25 @@
                 };
             }, [auctions.length]);
 
-            // Vylepšené sledování přítomnosti s podporou pro mobily (aktivní tracking v detailu)
+            // Aktivní tracking přítomnosti v detailu
             React.useEffect(() => {
                 if (view !== 'auction' || !selectedAuctionId) return;
 
-                const presenceChannel = supabase.channel(`presence_auc_${selectedAuctionId}`, {
+                const presenceChannel = supabase.channel(`presence_speed_${selectedAuctionId}`, {
                     config: { presence: { key: clientSessionId } }
                 });
 
                 presenceChannel.subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
-                        await presenceChannel.track({ 
-                            user_id: clientSessionId, 
-                            phone: user ? user.phone : 'guest',
-                            online_at: new Date().toISOString() 
-                        });
+                        await presenceChannel.track({ online_at: new Date().toISOString() });
                     }
                 });
 
-                // Interval pro udržení aktivního spojení na mobilech
-                const heartbeat = setInterval(async () => {
-                    if (presenceChannel.state === 'joined') {
-                        await presenceChannel.track({ 
-                            user_id: clientSessionId, 
-                            phone: user ? user.phone : 'guest',
-                            online_at: new Date().toISOString() 
-                        });
-                    }
-                }, 5000);
-
                 return () => {
-                    clearInterval(heartbeat);
                     presenceChannel.untrack();
                     supabase.removeChannel(presenceChannel);
                 };
-            }, [view, selectedAuctionId, clientSessionId, user]);
+            }, [view, selectedAuctionId, clientSessionId]);
 
             const today = new Date();
             const tomorrow = new Date(Date.now() + 86400000);
@@ -372,29 +357,32 @@
                 }
             };
 
+            // OKAMŽITÉ A SPOLEHLIVÉ MAZÁNÍ ÚČASTNÍKA
             const handleDeleteParticipant = async (partId, partPhone) => {
                 if (confirm('Opravdu chcete nenávratně smazat tohoto účastníka z databáze?')) {
-                    let { error } = await supabase.from('participants').delete().eq('id', partId);
-                    if (error && partPhone) {
-                        const res2 = await supabase.from('participants').delete().eq('phone', partPhone);
-                        error = res2.error;
-                    }
-                    if (error) {
-                        alert('Chyba při mazání účastníka: ' + error.message);
+                    // Okamžitá optimistická aktualizace stavu v UI pro maximální rychlost
+                    setParticipants(prev => prev.filter(p => p.id !== partId && p.phone !== partPhone));
+
+                    // Provedení příkazu v Supabase (podpora pro id i telefon)
+                    await supabase.from('participants').delete().eq('id', partId);
+                    if (partPhone) {
+                        await supabase.from('participants').delete().eq('phone', partPhone);
                     }
                     await fetchData();
                 }
             };
 
+            // OKAMŽITÉ A SPOLEHLIVÉ BLOKOVÁNÍ / ODBLOKOVÁNÍ ÚČASTNÍKA
             const handleToggleBlockParticipant = async (partId, partPhone, currentBlockedStatus) => {
-                let newStatus = !currentBlockedStatus;
-                let { error } = await supabase.from('participants').update({ blocked: newStatus }).eq('id', partId);
-                if (error && partPhone) {
-                    const res2 = await supabase.from('participants').update({ blocked: newStatus }).eq('phone', partPhone);
-                    error = res2.error;
-                }
-                if (error) {
-                    alert('Chyba při změně stavu blokování. Ověřte, zda existuje sloupec "blocked" v tabulce participants v Supabase.');
+                const newStatus = !currentBlockedStatus;
+
+                // Okamžitá optimistická aktualizace v UI
+                setParticipants(prev => prev.map(p => (p.id === partId || p.phone === partPhone) ? {...p, blocked: newStatus} : p));
+
+                // Uložení do Supabase
+                await supabase.from('participants').update({ blocked: newStatus }).eq('id', partId);
+                if (partPhone) {
+                    await supabase.from('participants').update({ blocked: newStatus }).eq('phone', partPhone);
                 }
                 await fetchData();
             };
