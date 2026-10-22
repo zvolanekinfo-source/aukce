@@ -111,11 +111,12 @@
                 };
             }, []);
 
+            // Okamžité sledování přítomnosti pro všechny aukce na hlavní stránce
             React.useEffect(() => {
                 if (auctions.length === 0) return;
 
                 const channels = auctions.map(auc => {
-                    const ch = supabase.channel(`room_global_${auc.id}`);
+                    const ch = supabase.channel(`presence_auc_${auc.id}`);
                     ch.on('presence', { event: 'sync' }, () => {
                         const state = ch.presenceState();
                         setActiveViewers(prev => ({ ...prev, [auc.id]: Object.keys(state).length }));
@@ -128,23 +129,23 @@
                 };
             }, [auctions.length]);
 
+            // Přihlášení do přítomnosti při vstupu do detailu aukce
             React.useEffect(() => {
                 if (view !== 'auction' || !selectedAuctionId) return;
 
-                const presenceChannel = supabase.channel(`room_global_${selectedAuctionId}`, {
-                    config: { presence: { key: clientSessionId } }
-                });
+                const presenceChannel = supabase.channel(`presence_auc_${selectedAuctionId}`);
 
                 presenceChannel.subscribe(async (status) => {
                     if (status === 'SUBSCRIBED') {
-                        await presenceChannel.track({ online_at: new Date().toISOString(), user: user ? user.phone : 'guest' });
+                        await presenceChannel.track({ user_id: clientSessionId, online_at: new Date().toISOString() });
                     }
                 });
 
                 return () => {
+                    presenceChannel.untrack();
                     supabase.removeChannel(presenceChannel);
                 };
-            }, [view, selectedAuctionId, user, clientSessionId]);
+            }, [view, selectedAuctionId, clientSessionId]);
 
             const today = new Date();
             const tomorrow = new Date(Date.now() + 86400000);
@@ -353,17 +354,14 @@
                 }
             };
 
+            // OPRAVENÉ MAZÁNÍ ÚČASTNÍKA (Jistota smazání bez ohledu na typ klíče)
             const handleDeleteParticipant = async (partId, partPhone) => {
                 if (confirm('Opravdu chcete nenávratně smazat tohoto účastníka z databáze?')) {
-                    let error = null;
-                    const res1 = await supabase.from('participants').delete().eq('id', partId);
-                    error = res1.error;
-
+                    let { error } = await supabase.from('participants').delete().eq('id', partId);
                     if (error && partPhone) {
                         const res2 = await supabase.from('participants').delete().eq('phone', partPhone);
                         error = res2.error;
                     }
-
                     if (error) {
                         alert('Chyba při mazání účastníka: ' + error.message);
                     }
@@ -371,18 +369,16 @@
                 }
             };
 
+            // OPRAVENÉ BLOKOVÁNÍ / ODBLOKOVÁNÍ ÚČASTNÍKA
             const handleToggleBlockParticipant = async (partId, partPhone, currentBlockedStatus) => {
-                let error = null;
-                const res1 = await supabase.from('participants').update({ blocked: !currentBlockedStatus }).eq('id', partId);
-                error = res1.error;
-
+                let newStatus = !currentBlockedStatus;
+                let { error } = await supabase.from('participants').update({ blocked: newStatus }).eq('id', partId);
                 if (error && partPhone) {
-                    const res2 = await supabase.from('participants').update({ blocked: !currentBlockedStatus }).eq('phone', partPhone);
+                    const res2 = await supabase.from('participants').update({ blocked: newStatus }).eq('phone', partPhone);
                     error = res2.error;
                 }
-
                 if (error) {
-                    alert('Chyba při blokování. Zkontrolujte sloupec "blocked" v tabulce participants v Supabase.');
+                    alert('Chyba při změně stavu blokování. Ověřte, zda existuje sloupec "blocked" v tabulce participants v Supabase.');
                 }
                 await fetchData();
             };
