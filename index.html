@@ -167,7 +167,7 @@
                 const updateMyPresence = async () => {
                     const channel = window.globalPresenceChannel;
                     if (channel && channel.state === 'joined') {
-                        if (view === 'auction' && selectedAuctionId) {
+                        if (view === 'auction' && selectedAuctionId && !isAdmin) {
                             await channel.track({ auctionId: selectedAuctionId, onlineAt: new Date().toISOString() });
                         } else {
                             await channel.track({ auctionId: null });
@@ -178,7 +178,7 @@
                 updateMyPresence();
                 window.addEventListener('presence_ready', updateMyPresence);
                 return () => window.removeEventListener('presence_ready', updateMyPresence);
-            }, [view, selectedAuctionId]);
+            }, [view, selectedAuctionId, isAdmin]);
 
 
             const today = new Date();
@@ -632,12 +632,13 @@
                                         {auctions.map(auc => {
                                             const currentPrice = getCurrentHighest(auc);
                                             const status = getAuctionStatus(auc);
-                                            const startTime = new Date(auc.startTime).getTime();
                                             const endTime = new Date(auc.endTime).getTime();
                                             const liveCount = getActiveViewersCount(auc.id);
+                                            const winningThis = isUserWinning(auc);
+                                            const ended = status === 'ended';
 
                                             return (
-                                                <div key={auc.id} className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-md flex flex-col justify-between hover:border-blue-300 transition">
+                                                <div key={auc.id} className={`bg-white rounded-2xl border overflow-hidden shadow-md flex flex-col justify-between transition ${winningThis ? 'border-emerald-500 ring-2 ring-emerald-500/20' : 'border-slate-200 hover:border-blue-300'}`}>
                                                     <div>
                                                         <div className="h-40 md:h-56 relative bg-white flex items-center justify-center p-2 border-b border-slate-100">
                                                             {auc.imageUrl ? (
@@ -646,6 +647,14 @@
                                                                 <span className="text-slate-300 text-xs">Bez fotografie</span>
                                                             )}
                                                             
+                                                            <div className="absolute top-3 left-3 flex flex-col gap-1 items-start">
+                                                                {winningThis && !isAdmin && (
+                                                                    <span className="bg-emerald-600 text-white text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-md flex items-center gap-1">
+                                                                        <span>✓ {ended ? 'VÝHERCE' : 'VEDETE'}</span>
+                                                                    </span>
+                                                                )}
+                                                            </div>
+
                                                             <div className="absolute top-3 right-3 flex flex-col gap-1 items-end">
                                                                 <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-widest shadow-md ${
                                                                     status === 'active' ? 'bg-emerald-600 text-white' : 
@@ -1180,7 +1189,7 @@
                                         Upozornění: Přes tento web neprobíhají žádné platby. Web slouží výhradně pro kontaktování výherce aukce.
                                     </p>
                                     <p className="text-slate-600 font-semibold text-[10px]">
-                                        Aukce Duo kontaktní osoba <span className="text-slate-900 font-bold">Zvolánek Denis</span> <a href="tel:+420602330228" className="text-blue-600 hover:underline font-bold">+420 602 330 228</a>
+                                        iAukce kontaktní osoba <span className="text-slate-900 font-bold">Zvolánek Denis</span> <a href="tel:+420602330228" className="text-blue-600 hover:underline font-bold">+420 602 330 228</a>
                                     </p>
                                 </div>
                                 
